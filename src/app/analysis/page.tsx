@@ -6,6 +6,8 @@ import type { ModuleKey } from '@/types/modules';
 import { ModuleCardsRow } from '@/components/modules/ModuleCardsRow';
 import { WorkspacePlaceholder } from '@/components/modules/WorkspacePlaceholder';
 import { Pill } from '@/components/ui/Pill';
+import { WorkflowShell } from '@/components/workflow/WorkflowShell';
+import { mrdWorkflowConfig } from '@/workflows/mrd/config';
 
 export default function AnalysisPage() {
   const [active, setActive] = useState<ModuleKey>('MRD');
@@ -36,14 +38,11 @@ export default function AnalysisPage() {
 
         {/* Контент ниже */}
         {active === 'MRD' ? (
-          <WorkspacePlaceholder
-            title="MRD workflow"
-            text="Здесь будет дерево workflow слева и детали шага справа (как в lite2). Пока — заглушка."
-          />
+          <WorkflowShell config={mrdWorkflowConfig} />
         ) : (
           <WorkspacePlaceholder
             title="Workflow"
-            text="Пока пусто. Этот workflow появится, когда предоставят шаги."
+            text="Пока пусто. В процессе разработки"
           />
         )}
       </div>
