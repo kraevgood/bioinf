@@ -4,6 +4,7 @@ import { useMemo, useState } from 'react';
 import type { WorkflowConfig, WorkflowStep } from '@/types/workflow';
 import { Card } from '@/components/ui/Card';
 import { WorkflowTree } from './WorkflowTree';
+import { WorkflowProvider } from './WorkflowContext';
 
 function flattenSteps(steps: WorkflowStep[]): WorkflowStep[] {
   const out: WorkflowStep[] = [];
@@ -25,6 +26,7 @@ export function WorkflowShell({ config }: { config: WorkflowConfig }) {
   const activeStep = stepById.get(activeId) ?? config.steps[0];
 
   return (
+    <WorkflowProvider>
     <div className="grid grid-cols-12 gap-6">
       {/* Left: tree */}
       <div className="col-span-12 md:col-span-5">
@@ -59,5 +61,6 @@ export function WorkflowShell({ config }: { config: WorkflowConfig }) {
         </Card>
       </div>
     </div>
+    </WorkflowProvider>
   );
 }
