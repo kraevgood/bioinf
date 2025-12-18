@@ -1,10 +1,10 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import type { WorkflowConfig, WorkflowStep } from '@/types/workflow';
 import { Card } from '@/components/ui/Card';
 import { WorkflowTree } from './WorkflowTree';
-import { WorkflowProvider } from './WorkflowContext';
+import { WorkflowProvider, useWorkflow } from './WorkflowContext';
 
 function flattenSteps(steps: WorkflowStep[]): WorkflowStep[] {
   const out: WorkflowStep[] = [];
@@ -15,52 +15,48 @@ function flattenSteps(steps: WorkflowStep[]): WorkflowStep[] {
   return out;
 }
 
-export function WorkflowShell({ config }: { config: WorkflowConfig }) {
-  const [activeId, setActiveId] = useState(config.defaultStepId);
+function ShellInner({ config }: { config: WorkflowConfig }) {
+  const { activeStepId, setActiveStepId } = useWorkflow();
 
-  const stepById = useMemo(() => {
-    const flat = flattenSteps(config.steps);
-    return new Map(flat.map(s => [s.id, s]));
-  }, [config.steps]);
-
-  const activeStep = stepById.get(activeId) ?? config.steps[0];
+  const flat = useMemo(() => flattenSteps(config.steps), [config.steps]);
+  const activeStep = flat.find(s => s.id === activeStepId) ?? flat[0];
 
   return (
-    <WorkflowProvider>
     <div className="grid grid-cols-12 gap-6">
-      {/* Left: tree */}
+      {/* Left */}
       <div className="col-span-12 md:col-span-5">
-        <Card className="p-5">
-          <div className="flex items-center justify-between">
+        <Card className="p-6">
+          <div className="flex items-start justify-between gap-3">
             <div>
               <div className="text-sm font-semibold text-slate-900">Workflow tree</div>
               <div className="mt-1 text-xs text-slate-500">Клик по узлу → детали справа</div>
             </div>
-
-            <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs text-slate-700">
-              Mode: tumor-informed
-            </span>
           </div>
 
           <div className="mt-4">
-            <WorkflowTree steps={config.steps} activeId={activeId} onSelect={setActiveId} />
+            <WorkflowTree steps={config.steps} activeId={activeStepId} onSelect={setActiveStepId} />
           </div>
         </Card>
       </div>
 
-      {/* Right: details */}
+      {/* Right */}
       <div className="col-span-12 md:col-span-7">
         <Card className="p-6">
           <div className="text-sm text-slate-500">Selected step</div>
           <div className="mt-1 text-xl font-semibold text-slate-900">{activeStep.title}</div>
-          {activeStep.subtitle ? (
-            <div className="mt-2 text-sm text-slate-600">{activeStep.subtitle}</div>
-          ) : null}
+          {activeStep.subtitle ? <div className="mt-2 text-sm text-slate-600">{activeStep.subtitle}</div> : null}
 
           <div className="mt-6">{activeStep.render()}</div>
         </Card>
       </div>
     </div>
+  );
+}
+
+export function WorkflowShell({ config }: { config: WorkflowConfig }) {
+  return (
+    <WorkflowProvider initialActiveStepId={config.defaultStepId}>
+      <ShellInner config={config} />
     </WorkflowProvider>
   );
 }

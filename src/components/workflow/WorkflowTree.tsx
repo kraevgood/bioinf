@@ -1,98 +1,154 @@
-'use client';
+"use client";
 
-import type { WorkflowStep } from '@/types/workflow';
+import React from "react";
+import type { WorkflowStep, StepStatus } from "@/types/workflow";
+import { useWorkflow } from "./WorkflowContext";
+import { PatientsStore } from "@/store/patientsStore";
 
-function StepMarker({
-  kind,
-  index,
-  active,
-}: {
-  kind: 'step' | 'substep';
-  index?: number;
-  active: boolean;
-}) {
-  if (kind === 'substep') {
-    return (
-      <div
-        className={[
-          'h-7 w-7 rounded-xl border flex items-center justify-center text-xs',
-          active
-            ? 'border-emerald-300 bg-emerald-50 text-emerald-700'
-            : 'border-slate-200 bg-slate-50 text-slate-500',
-        ].join(' ')}
-      >
-        <span className="h-2 w-2 rounded-full bg-current" />
-      </div>
-    );
-  }
-
-  return (
-    <div
-      className={[
-        'h-9 w-9 rounded-2xl border flex items-center justify-center font-semibold',
-        active
-          ? 'border-blue-300 bg-blue-50 text-blue-700'
-          : 'border-slate-200 bg-slate-50 text-slate-700',
-      ].join(' ')}
-    >
-      {index}
-    </div>
-  );
+function markerClass(status: StepStatus, active: boolean) {
+  const base =
+    "flex h-7 w-7 items-center justify-center rounded-full border text-xs";
+  if (active) return `${base} border-slate-400 bg-slate-50 text-slate-900`;
+  if (status === "done")
+    return `${base} border-emerald-300 bg-emerald-50 text-emerald-800`;
+  if (status === "processing")
+    return `${base} border-amber-300 bg-amber-50 text-amber-900`;
+  if (status === "error")
+    return `${base} border-red-300 bg-red-50 text-red-800`;
+  return `${base} border-slate-200 bg-white text-slate-500`;
 }
 
-function TreeRow({
+function computeStatus(
+  stepId: string,
+  patientId: string | null,
+  workflowState: { selectedPatient: { id: string } | null }
+): StepStatus | undefined {
+  // ✅ Step1 считается пройденным, когда выбран пациент
+  if (stepId === "step1") {
+    return workflowState.selectedPatient ? "done" : undefined;
+  }
+
+  if (!patientId) return undefined;
+  const p = PatientsStore.findById(patientId);
+  if (!p) return undefined;
+
+  // Step2 main
+  if (stepId === "step2") {
+    if (p.imprintCreated) return "done";
+    if (p.imprintSkipped) return "done";
+    if (p.imprintInputsReady) return "processing"; // загрузили и начали прогон
+    return undefined;
+  }
+
+  // Step2 substeps
+  if (stepId === "step2_loh") {
+    const s = p.imprintModules?.LOH;
+    if (s === "done") return "done";
+    if (s === "running") return "processing";
+    return undefined;
+  }
+  if (stepId === "step2_cnv") {
+    const s = p.imprintModules?.CNV;
+    if (s === "done") return "done";
+    if (s === "running") return "processing";
+    return undefined;
+  }
+  if (stepId === "step2_snv") {
+    const s = p.imprintModules?.SNV;
+    if (s === "done") return "done";
+    if (s === "running") return "processing";
+    return undefined;
+  }
+
+  return undefined;
+}
+
+function TreeItem({
   step,
   activeId,
   onSelect,
-  kind,
+  depth,
   index,
 }: {
   step: WorkflowStep;
   activeId: string;
   onSelect: (id: string) => void;
-  kind: 'step' | 'substep';
+  depth: number;
   index?: number;
 }) {
-  const isActive = step.id === activeId;
+  const { state } = useWorkflow();
+  const patientId = state.selectedPatient?.id ?? null;
+
+  const dynStatus = computeStatus(step.id, patientId, {
+    selectedPatient: state.selectedPatient,
+  });
+  const status = dynStatus ?? step.status ?? "idle";
+  const active = activeId === step.id;
+
+  const isSub = step.kind === "substep";
+  const markerText = isSub ? "" : String(index ?? "");
 
   return (
-    <button
-      type="button"
-      onClick={() => onSelect(step.id)}
-      className={[
-        'w-full text-left rounded-2xl border px-4 py-3 transition',
-        'bg-white',
-        isActive ? 'border-slate-300 shadow-sm' : 'border-slate-200 hover:border-slate-300',
-      ].join(' ')}
-    >
-      <div className="flex items-start gap-3">
-        <div className="pt-0.5">
-          <StepMarker kind={kind} index={index} active={isActive} />
-        </div>
+    <div className={depth > 0 ? "ml-10" : ""}>
+      <button
+        type="button"
+        onClick={() => onSelect(step.id)}
+        className={[
+          "w-full rounded-2xl border px-4 py-3 text-left transition",
+          active
+            ? "border-slate-300 bg-slate-50"
+            : "border-slate-200 bg-white hover:border-slate-300",
+        ].join(" ")}
+      >
+        <div className="flex items-start gap-3">
+          <div className="pt-0.5">
+            <div className={markerClass(status, active)}>
+              {status === "done" ? "✓" : markerText}
+            </div>
+          </div>
 
-        <div className="min-w-0 flex-1">
-          <div className="flex items-start justify-between gap-3">
-            <div className="min-w-0">
-              <div className="text-sm font-semibold text-slate-900">
-                {step.title}
+          <div className="min-w-0 flex-1">
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <div className="text-sm font-semibold text-slate-900">
+                  {step.title}
+                </div>
+                {step.subtitle ? (
+                  <div className="mt-1 text-xs text-slate-500">
+                    {step.subtitle}
+                  </div>
+                ) : null}
               </div>
 
-              {step.subtitle ? (
-                <div className="mt-1 text-xs text-slate-500 line-clamp-2">
-                  {step.subtitle}
+              {step.badgeText ? (
+                <div className="shrink-0 rounded-full border border-slate-200 bg-white px-3 py-1 text-xs text-slate-600">
+                  {step.badgeText}
                 </div>
               ) : null}
             </div>
-
-            {step.badgeText ? (
-              <span className="shrink-0 rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs text-slate-600">
-                {step.badgeText}
-              </span>
-            ) : null}
           </div>
         </div>
-      </div>
-    </button>
+      </button>
+
+      {step.children?.length ? (
+        <div className="relative mt-3">
+          {/* вертикальная линия слева для подшагов */}
+          <div className="absolute left-3.5 top-0 h-full w-px bg-slate-200" />
+
+          <div className="space-y-3">
+            {step.children.map((child) => (
+              <TreeItem
+                key={child.id}
+                step={child}
+                activeId={activeId}
+                onSelect={onSelect}
+                depth={depth + 1}
+              />
+            ))}
+          </div>
+        </div>
+      ) : null}
+    </div>
   );
 }
 
@@ -107,39 +163,16 @@ export function WorkflowTree({
 }) {
   return (
     <div className="space-y-3">
-      {steps.map((step, i) => {
-        const kind: 'step' | 'substep' = (step.kind ?? 'step') as 'step' | 'substep';
-
-        return (
-          <div key={step.id} className="space-y-2">
-            <TreeRow
-              step={step}
-              activeId={activeId}
-              onSelect={onSelect}
-              kind={kind}
-              index={i + 1}
-            />
-
-            {step.children?.length ? (
-              <div className="relative ml-8 pl-6 space-y-2">
-                {/* ВЕРТИКАЛЬНАЯ ЛИНИЯ ГРУППЫ */}
-                <div className="absolute left-0 top-0 bottom-0 w-px border-l border-dashed border-slate-300" />
-
-
-                {step.children.map(child => (
-                  <TreeRow
-                    key={child.id}
-                    step={child}
-                    activeId={activeId}
-                    onSelect={onSelect}
-                    kind={('substep') as const}
-                  />
-                ))}
-              </div>
-            ) : null}
-          </div>
-        );
-      })}
+      {steps.map((step, i) => (
+        <TreeItem
+          key={step.id}
+          step={step}
+          activeId={activeId}
+          onSelect={onSelect}
+          depth={0}
+          index={i + 1}
+        />
+      ))}
     </div>
   );
 }

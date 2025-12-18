@@ -4,15 +4,18 @@ import { createContext, useContext, useMemo, useState } from 'react';
 import type { Patient, WorkflowState } from '@/types/workflowState';
 
 type WorkflowContextValue = {
+  // workflow data
   state: WorkflowState;
   setCaseId: (v: string) => void;
   setIndication: (v: string) => void;
   toggleSurgeryDate: (v?: boolean) => void;
   setSurgeryDate: (v: string) => void;
   setSelectedPatient: (p: Patient | null) => void;
-};
 
-const Ctx = createContext<WorkflowContextValue | null>(null);
+  // navigation
+  activeStepId: string;
+  setActiveStepId: (id: string) => void;
+};
 
 const initialState: WorkflowState = {
   selectedPatient: null,
@@ -22,8 +25,17 @@ const initialState: WorkflowState = {
   surgeryDate: '',
 };
 
-export function WorkflowProvider({ children }: { children: React.ReactNode }) {
+const Ctx = createContext<WorkflowContextValue | null>(null);
+
+export function WorkflowProvider({
+  children,
+  initialActiveStepId,
+}: {
+  children: React.ReactNode;
+  initialActiveStepId: string;
+}) {
   const [state, setState] = useState<WorkflowState>(initialState);
+  const [activeStepId, setActiveStepId] = useState<string>(initialActiveStepId);
 
   const api = useMemo<WorkflowContextValue>(() => {
     return {
@@ -37,8 +49,11 @@ export function WorkflowProvider({ children }: { children: React.ReactNode }) {
         }),
       setSurgeryDate: v => setState(s => ({ ...s, surgeryDate: v })),
       setSelectedPatient: p => setState(s => ({ ...s, selectedPatient: p })),
+
+      activeStepId,
+      setActiveStepId,
     };
-  }, [state]);
+  }, [state, activeStepId]);
 
   return <Ctx.Provider value={api}>{children}</Ctx.Provider>;
 }

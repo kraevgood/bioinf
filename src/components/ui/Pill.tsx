@@ -3,7 +3,7 @@ export function Pill({
   variant = 'neutral',
 }: {
   children: React.ReactNode;
-  variant?: 'neutral' | 'on' | 'off' | 'locked';
+  variant?: 'neutral' | 'on' | 'off' | 'locked' | 'success' | 'info' | 'warning' | 'default' | 'success';
 }) {
   const cls =
     variant === 'on'

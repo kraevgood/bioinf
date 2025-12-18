@@ -2,10 +2,22 @@ import type { Patient } from '@/types/workflowState';
 
 const LS_KEY = 'mrd_patients_v2';
 
+export type ImprintModuleKey = 'LOH' | 'CNV' | 'SNV';
+export type ImprintModuleState = 'idle' | 'running' | 'done';
+
 export type StoredPatient = Patient & {
-  indication?: string;      // нозология
-  hasSurgeryDate?: boolean; // включён ли флаг
-  surgeryDate?: string;     // YYYY-MM-DD
+  indication?: string;
+  hasSurgeryDate?: boolean;
+  surgeryDate?: string;
+
+  // Step2
+  tumorAvailable?: boolean;          // чекбокс tumor available
+  imprintSkipped?: boolean;          // если tumor unavailable
+  imprintSkipReason?: 'no_tumor';    // причина skip
+  imprintInputsReady?: boolean;      // файлы загружены+валидированы (демо-логика)
+  imprintModules?: Record<ImprintModuleKey, ImprintModuleState>;
+  imprintCreated?: boolean;
+  imprintCreatedAt?: string;         // ISO
 };
 
 function safeParse<T>(raw: string | null): T | null {
@@ -31,6 +43,11 @@ export const PatientsStore = {
 
   clear() {
     localStorage.removeItem(LS_KEY);
+  },
+
+  findById(id: string): StoredPatient | undefined {
+    const key = id.trim().toLowerCase();
+    return this.list().find(x => x.id.trim().toLowerCase() === key);
   },
 
   upsert(p: StoredPatient): { patients: StoredPatient[]; saved: StoredPatient } {
