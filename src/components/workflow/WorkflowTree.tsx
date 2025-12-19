@@ -23,7 +23,7 @@ function computeStatus(
   patientId: string | null,
   workflowState: { selectedPatient: { id: string } | null }
 ): StepStatus | undefined {
-  // ✅ Step1 считается пройденным, когда выбран пациент
+  // Step1 done = выбран пациент
   if (stepId === "step1") {
     return workflowState.selectedPatient ? "done" : undefined;
   }
@@ -36,7 +36,7 @@ function computeStatus(
   if (stepId === "step2") {
     if (p.imprintCreated) return "done";
     if (p.imprintSkipped) return "done";
-    if (p.imprintInputsReady) return "processing"; // загрузили и начали прогон
+    if (p.imprintInputsReady) return "processing";
     return undefined;
   }
 
@@ -57,6 +57,12 @@ function computeStatus(
     const s = p.imprintModules?.SNV;
     if (s === "done") return "done";
     if (s === "running") return "processing";
+    return undefined;
+  }
+
+  // ✅ Step3: done если добавлен хотя бы 1 plasma timepoint
+  if (stepId === "step3") {
+    if ((p.plasmaSamples?.length ?? 0) > 0) return "done";
     return undefined;
   }
 

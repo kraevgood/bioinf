@@ -16,7 +16,7 @@ type Slot = {
 };
 
 const PROCESS_TIME_MS = 4000; // время демо-сканирования сабстепа
-const AFTER_DONE_BACK_MS = 1200; // пауза после последнего сабстепа (SNV) перед возвратом в step2
+const AFTER_DONE_BACK_MS = 2000; // пауза после последнего сабстепа (SNV) перед возвратом в step2
 
 function extOk(name: string) {
   const n = name.toLowerCase();
