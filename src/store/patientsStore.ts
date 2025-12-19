@@ -11,13 +11,20 @@ export type StoredPatient = Patient & {
   surgeryDate?: string;
 
   // Step2
-  tumorAvailable?: boolean;          // чекбокс tumor available
-  imprintSkipped?: boolean;          // если tumor unavailable
-  imprintSkipReason?: 'no_tumor';    // причина skip
-  imprintInputsReady?: boolean;      // файлы загружены+валидированы (демо-логика)
+  tumorAvailable?: boolean; // чекбокс tumor available
+  imprintSkipped?: boolean; // если tumor unavailable
+  imprintSkipReason?: 'no_tumor'; // причина skip
+
+  // --- NEW: Validate / Next gating ---
+  imprintValidated?: boolean; // нажали Validate и успешно прошло
+  imprintValidationAt?: string; // ISO timestamp
+  imprintRunStarted?: boolean; // нажали Next и стартанули LOH→CNV→SNV
+
+  // состояние step2
+  imprintInputsReady?: boolean; // файлы загружены+валидированы (демо-логика)
   imprintModules?: Record<ImprintModuleKey, ImprintModuleState>;
   imprintCreated?: boolean;
-  imprintCreatedAt?: string;         // ISO
+  imprintCreatedAt?: string; // ISO
 };
 
 function safeParse<T>(raw: string | null): T | null {

@@ -1,12 +1,12 @@
-'use client';
+"use client";
 
-import React from 'react';
-import { Card } from '@/components/ui/Card';
-import { useWorkflow } from '@/components/workflow/WorkflowContext';
-import { PatientsStore } from '@/store/patientsStore';
-import type { ImprintModuleKey } from '@/store/patientsStore';
+import React from "react";
+import { Card } from "@/components/ui/Card";
+import { useWorkflow } from "@/components/workflow/WorkflowContext";
+import { PatientsStore } from "@/store/patientsStore";
+import type { ImprintModuleKey } from "@/store/patientsStore";
 
-type FileSlotKey = 'nR1' | 'nR2' | 'tR1' | 'tR2';
+type FileSlotKey = "nR1" | "nR2" | "tR1" | "tR2";
 
 type Slot = {
   key: FileSlotKey;
@@ -15,15 +15,21 @@ type Slot = {
   error?: string;
 };
 
-const PROCESS_TIME_MS = 6000; // 6 сек на каждый сабстеп (демо-реализм)
+const PROCESS_TIME_MS = 4000; // время демо-сканирования сабстепа
+const AFTER_DONE_BACK_MS = 1200; // пауза после последнего сабстепа (SNV) перед возвратом в step2
 
 function extOk(name: string) {
   const n = name.toLowerCase();
-  return n.endsWith('.fastq') || n.endsWith('.fq') || n.endsWith('.fastq.gz') || n.endsWith('.fq.gz');
+  return (
+    n.endsWith(".fastq") ||
+    n.endsWith(".fq") ||
+    n.endsWith(".fastq.gz") ||
+    n.endsWith(".fq.gz")
+  );
 }
 
 function bytesToHuman(n: number) {
-  const units = ['B', 'KB', 'MB', 'GB'];
+  const units = ["B", "KB", "MB", "GB"];
   let i = 0;
   let v = n;
   while (v >= 1024 && i < units.length - 1) {
@@ -52,7 +58,13 @@ function ScanCard({
           <div className="mt-1 text-xs text-slate-500">{subtitle}</div>
         </div>
         <div className="text-xs text-slate-600">
-          {done ? <span className="font-semibold text-emerald-700">✓ Done</span> : running ? 'Scanning…' : 'Idle'}
+          {done ? (
+            <span className="font-semibold text-emerald-700">✓ Done</span>
+          ) : running ? (
+            "Scanning…"
+          ) : (
+            "Idle"
+          )}
         </div>
       </div>
 
@@ -61,35 +73,38 @@ function ScanCard({
           <div className="h-2 w-full overflow-hidden rounded-full bg-slate-100">
             <div className="h-2 w-1/3 animate-pulse rounded-full bg-slate-300" />
           </div>
-          <div className="mt-2 text-xs text-slate-500">Analyzing reads, suppressing noise, extracting features…</div>
+          <div className="mt-2 text-xs text-slate-500">
+            Analyzing reads, suppressing noise, extracting features…
+          </div>
         </div>
       ) : null}
 
-      {done ? <div className="mt-4 text-xs text-emerald-700">✓ Completed</div> : null}
+      {done ? (
+        <div className="mt-4 text-xs text-emerald-700">✓ Completed</div>
+      ) : null}
     </div>
   );
 }
 
 export function Step2() {
+  // важно: в твоей текущей версии useWorkflow уже содержит activeStepId/setActiveStepId
   const { state, activeStepId, setActiveStepId } = useWorkflow();
   const patientId = state.selectedPatient?.id ?? null;
 
-  const isMain = activeStepId === 'step2';
-  const isLoh = activeStepId === 'step2_loh';
-  const isCnv = activeStepId === 'step2_cnv';
-  const isSnv = activeStepId === 'step2_snv';
+  const isMain = activeStepId === "step2";
+  const isLoh = activeStepId === "step2_loh";
+  const isCnv = activeStepId === "step2_cnv";
+  const isSnv = activeStepId === "step2_snv";
 
   const [tumorAvailable, setTumorAvailable] = React.useState(true);
 
   const [slots, setSlots] = React.useState<Slot[]>([
-    { key: 'nR1', title: 'Normal FASTQ — R1', file: null },
-    { key: 'nR2', title: 'Normal FASTQ — R2', file: null },
-    { key: 'tR1', title: 'Tumor FASTQ — R1', file: null },
-    { key: 'tR2', title: 'Tumor FASTQ — R2', file: null },
+    { key: "nR1", title: "Normal FASTQ — R1", file: null },
+    { key: "nR2", title: "Normal FASTQ — R2", file: null },
+    { key: "tR1", title: "Tumor FASTQ — R1", file: null },
+    { key: "tR2", title: "Tumor FASTQ — R2", file: null },
   ]);
 
-  // eslint/react-hooks warning fix: stable signature for deps
-  const slotsSignature = React.useMemo(() => slots.map(s => s.file?.name ?? '').join('|'), [slots]);
 
   const [busy, setBusy] = React.useState(false);
   const [globalError, setGlobalError] = React.useState<string | null>(null);
@@ -111,119 +126,132 @@ export function Step2() {
   }
 
   function setSlotFile(key: FileSlotKey, file: File | null) {
-    setSlots(prev =>
-      prev.map(s => {
+    setSlots((prev) =>
+      prev.map((s) => {
         if (s.key !== key) return s;
         return { ...s, file, error: undefined };
-      }),
+      })
     );
     setGlobalError(null);
+
+    // если пользователь меняет файлы — сбрасываем "validated", чтобы Next снова стал недоступен
+    if (patientId) {
+      const p = PatientsStore.findById(patientId);
+      if (p?.imprintValidated) {
+        upsertPatient({
+          imprintValidated: false,
+          imprintValidationAt: "",
+          imprintInputsReady: false,
+          imprintRunStarted: false,
+          imprintModules: { LOH: "idle", CNV: "idle", SNV: "idle" },
+          imprintCreated: false,
+          imprintCreatedAt: "",
+        });
+      }
+    }
   }
 
+  // Заглушка "полноценной" проверки: presence + extension + size>0
   function validateInputs(): boolean {
     setGlobalError(null);
 
     let ok = true;
 
-    setSlots(prev =>
-      prev.map(s => {
-        const isTumor = s.key === 'tR1' || s.key === 'tR2';
+    setSlots((prev) =>
+      prev.map((s) => {
+        const isTumor = s.key === "tR1" || s.key === "tR2";
         if (isTumor && !tumorAvailable) return { ...s, error: undefined };
 
         if (!s.file) {
           ok = false;
-          return { ...s, error: 'File required' };
+          return { ...s, error: "File required" };
         }
         if (!extOk(s.file.name)) {
           ok = false;
-          return { ...s, error: 'Invalid extension (fastq/fq/fastq.gz/fq.gz)' };
+          return { ...s, error: "Invalid extension (fastq/fq/fastq.gz/fq.gz)" };
         }
         if (s.file.size <= 0) {
           ok = false;
-          return { ...s, error: 'File is empty' };
+          return { ...s, error: "File is empty" };
         }
         return { ...s, error: undefined };
-      }),
+      })
     );
 
-    if (!ok) setGlobalError('Fix file errors first.');
+    if (!ok) setGlobalError("Fix file errors first.");
     return ok;
   }
 
-  // MAIN STEP2: только upload
-  // Как только все нужные файлы есть и валидация ок — автоматически стартуем сабстепы
+  function allRequiredFilesUploaded(): boolean {
+    const nR1 = slots.find((s) => s.key === "nR1")?.file;
+    const nR2 = slots.find((s) => s.key === "nR2")?.file;
+
+    if (!nR1 || !nR2) return false;
+
+    if (tumorAvailable) {
+      const tR1 = slots.find((s) => s.key === "tR1")?.file;
+      const tR2 = slots.find((s) => s.key === "tR2")?.file;
+      if (!tR1 || !tR2) return false;
+    }
+
+    return true;
+  }
+
+  // MAIN: синхроним tumorAvailable и режим skip (но НЕ запускаем сабстепы автоматически)
   React.useEffect(() => {
     if (!patientId) return;
-    if (!isMain) return;
 
     upsertPatient({
       tumorAvailable,
       imprintSkipped: !tumorAvailable,
-      imprintSkipReason: !tumorAvailable ? 'no_tumor' : undefined,
+      imprintSkipReason: !tumorAvailable ? "no_tumor" : undefined,
     });
 
-    // если tumor unavailable — Step2 считается выполненным (skip), imprint не создаём
+    // если tumor выключен — считаем Step2 skipped (не требуем validate/next)
     if (!tumorAvailable) {
       upsertPatient({
+        imprintValidated: false,
+        imprintValidationAt: "",
         imprintInputsReady: false,
-        imprintModules: { LOH: 'idle', CNV: 'idle', SNV: 'idle' },
+        imprintRunStarted: false,
+        imprintModules: { LOH: "idle", CNV: "idle", SNV: "idle" },
         imprintCreated: false,
-        imprintCreatedAt: '',
+        imprintCreatedAt: "",
       });
-      return;
     }
-
-    // ✅ guard: если уже запускали или уже создан imprint — не перезапускать при возврате на step2
-    const stored = PatientsStore.findById(patientId);
-    if (stored?.imprintCreated) return;
-    if (stored?.imprintInputsReady) return;
-
-    const nR1 = slots.find(s => s.key === 'nR1')?.file;
-    const nR2 = slots.find(s => s.key === 'nR2')?.file;
-    const tR1 = slots.find(s => s.key === 'tR1')?.file;
-    const tR2 = slots.find(s => s.key === 'tR2')?.file;
-
-    const haveAll = !!(nR1 && nR2 && tR1 && tR2);
-    if (!haveAll) return;
-
-    // авто-валидация
-    const ok = validateInputs();
-    if (!ok) return;
-
-    // фиксируем, что inputs готовы, и запускаем прогон
-    upsertPatient({
-      imprintInputsReady: true,
-      imprintModules: { LOH: 'idle', CNV: 'idle', SNV: 'idle' },
-      imprintCreated: false,
-      imprintCreatedAt: '',
-      imprintSkipped: false,
-      imprintSkipReason: undefined,
-    });
-
-    // авто-переход на первый сабстеп
-    const t = setTimeout(() => setActiveStepId('step2_loh'), 800);
-    return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [patientId, isMain, tumorAvailable, slotsSignature]);
+  }, [patientId, tumorAvailable]);
 
-  // SUBSTEPS: сканирование одного модуля и авто-переход дальше
+  // SUBSTEPS: демо-сканирование одного модуля и авто-переход дальше
   React.useEffect(() => {
     if (!patientId) return;
 
-    const moduleKey: ImprintModuleKey | null = isLoh ? 'LOH' : isCnv ? 'CNV' : isSnv ? 'SNV' : null;
+    const moduleKey: ImprintModuleKey | null = isLoh
+      ? "LOH"
+      : isCnv
+      ? "CNV"
+      : isSnv
+      ? "SNV"
+      : null;
     if (!moduleKey) return;
 
     const p = PatientsStore.findById(patientId);
 
-    if (p?.imprintSkipped) {
-      setActiveStepId('step2');
+    // если шаг скипнут или не было "Next" (не запускали прогон) — возвращаемся в step2
+    if (p?.imprintSkipped || !p?.imprintRunStarted) {
+      setActiveStepId("step2");
       return;
     }
 
-    // если уже done — просто пролистаем дальше
+    // если уже done — перелистываем дальше
     const current = p?.imprintModules?.[moduleKey];
-    if (current === 'done') {
-      const next = moduleKey === 'LOH' ? 'step2_cnv' : moduleKey === 'CNV' ? 'step2_snv' : 'step2';
+    if (current === "done") {
+      const next =
+        moduleKey === "LOH"
+          ? "step2_cnv"
+          : moduleKey === "CNV"
+          ? "step2_snv"
+          : "step2";
       const t = setTimeout(() => setActiveStepId(next), 800);
       return () => clearTimeout(t);
     }
@@ -233,10 +261,10 @@ export function Step2() {
     // mark running
     upsertPatient({
       imprintModules: {
-        LOH: p?.imprintModules?.LOH ?? 'idle',
-        CNV: p?.imprintModules?.CNV ?? 'idle',
-        SNV: p?.imprintModules?.SNV ?? 'idle',
-        [moduleKey]: 'running',
+        LOH: p?.imprintModules?.LOH ?? "idle",
+        CNV: p?.imprintModules?.CNV ?? "idle",
+        SNV: p?.imprintModules?.SNV ?? "idle",
+        [moduleKey]: "running",
       },
     });
 
@@ -245,28 +273,29 @@ export function Step2() {
 
       upsertPatient({
         imprintModules: {
-          LOH: p2?.imprintModules?.LOH ?? 'idle',
-          CNV: p2?.imprintModules?.CNV ?? 'idle',
-          SNV: p2?.imprintModules?.SNV ?? 'idle',
-          [moduleKey]: 'done',
+          LOH: p2?.imprintModules?.LOH ?? "idle",
+          CNV: p2?.imprintModules?.CNV ?? "idle",
+          SNV: p2?.imprintModules?.SNV ?? "idle",
+          [moduleKey]: "done",
         },
       });
 
       setBusy(false);
 
       // go next
-      if (moduleKey === 'LOH') setActiveStepId('step2_cnv');
-      if (moduleKey === 'CNV') setActiveStepId('step2_snv');
+      if (moduleKey === "LOH") setActiveStepId("step2_cnv");
+      if (moduleKey === "CNV") setActiveStepId("step2_snv");
 
-      if (moduleKey === 'SNV') {
-        // финал: возвращаемся на step2, ставим imprintCreated, затем идем на step3
+      if (moduleKey === "SNV") {
+        // финал: возвращаемся на step2, ставим imprintCreated
         upsertPatient({
           imprintCreated: true,
           imprintCreatedAt: new Date().toISOString(),
         });
 
-        setTimeout(() => setActiveStepId('step2'), 1500);
-        setTimeout(() => setActiveStepId('step3'), 3000);
+        setTimeout(() => setActiveStepId("step2"), AFTER_DONE_BACK_MS);
+
+        // ВАЖНО: убрали автопереход на step3 (по твоему требованию)
       }
     }, PROCESS_TIME_MS);
 
@@ -278,7 +307,9 @@ export function Step2() {
     return (
       <div className="space-y-2">
         <div className="text-lg font-semibold">Step 2 — Create imprint</div>
-        <div className="text-sm text-slate-600">Сначала выбери пациента на Step 1.</div>
+        <div className="text-sm text-slate-600">
+          Сначала выберите пациента на Step 1.
+        </div>
       </div>
     );
   }
@@ -288,55 +319,133 @@ export function Step2() {
 
   // ===== SUBSTEP UI (сканирование) =====
   if (!isMain) {
-    const title = isLoh ? 'LOH discovery' : isCnv ? 'CNV segments' : 'SNV compendium';
-    const subtitle = isLoh
-      ? 'Windows + major allele inference for BAF'
+    const title = isLoh
+      ? "LOH discovery"
       : isCnv
-        ? 'Tumor CNV profile used as tags'
-        : 'Tumor-confirmed SNVs (no indels)';
+      ? "CNV segments"
+      : "SNV compendium";
+    const subtitle = isLoh
+      ? "Windows + major allele inference for BAF"
+      : isCnv
+      ? "Tumor CNV profile used as tags"
+      : "Tumor-confirmed SNVs (no indels)";
 
-    const subModuleKey: ImprintModuleKey = isLoh ? 'LOH' : isCnv ? 'CNV' : 'SNV';
-    const st = stored?.imprintModules?.[subModuleKey] ?? 'idle';
+    const subKey: ImprintModuleKey = isLoh ? "LOH" : isCnv ? "CNV" : "SNV";
+    const st = stored?.imprintModules?.[subKey] ?? "idle";
 
     return (
       <div className="space-y-4">
         <div className="text-lg font-semibold">{title}</div>
         <div className="text-sm text-slate-600">
-          Patient: <span className="font-medium text-slate-900">{patientLabel}</span>{' '}
+          Patient:{" "}
+          <span className="font-medium text-slate-900">{patientLabel}</span>{" "}
           <span className="text-slate-400">({patientId})</span>
         </div>
 
-        <ScanCard title={title} subtitle={subtitle} running={st === 'running'} done={st === 'done'} />
+        <ScanCard
+          title={title}
+          subtitle={subtitle}
+          running={st === "running"}
+          done={st === "done"}
+        />
 
         <div className="text-xs text-slate-500">
-          Авто-демо: сканирование ({Math.round(PROCESS_TIME_MS / 1000)}s) → галочка → следующий сабстеп.
+          Демо: сканирование ({Math.round(PROCESS_TIME_MS / 1000)}s) → галочка →
+          следующий сабстеп.
         </div>
       </div>
     );
   }
 
-  // ===== MAIN STEP2 UI (только upload) =====
+  // ===== MAIN STEP2 UI (upload + validate + next) =====
+  const validateDisabled =
+    busy ||
+    !!stored?.imprintCreated ||
+    !tumorAvailable ||
+    (stored?.imprintRunStarted ?? false) ||
+    !allRequiredFilesUploaded();
+
+  const nextEnabled = tumorAvailable
+    ? !!stored?.imprintValidated &&
+      !stored?.imprintRunStarted &&
+      !stored?.imprintCreated
+    : false; // при tumor=false next не разблокируем (step считается skipped)
+
+  async function handleValidate() {
+    if (!patientId) return;
+    if (!tumorAvailable) return;
+
+    setGlobalError(null);
+
+    const ok = validateInputs();
+    if (!ok) return;
+
+    // Заглушка "валидации" — имитируем краткую проверку (например, 700ms)
+    upsertPatient({
+      imprintValidated: false,
+      imprintValidationAt: "",
+      imprintInputsReady: false,
+    });
+
+    setBusy(true);
+    await new Promise((r) => setTimeout(r, 700));
+    setBusy(false);
+
+    upsertPatient({
+      imprintValidated: true,
+      imprintValidationAt: new Date().toISOString(),
+      imprintInputsReady: true, // для дерева: после validate считаем ready/processing
+      imprintRunStarted: false,
+      imprintModules: { LOH: "idle", CNV: "idle", SNV: "idle" },
+      imprintCreated: false,
+      imprintCreatedAt: "",
+      imprintSkipped: false,
+      imprintSkipReason: undefined,
+    });
+  }
+
+  function handleNext() {
+    if (!patientId) return;
+    if (!tumorAvailable) return;
+    if (!stored?.imprintValidated) return;
+
+    // Старт демо-прогона сабстепов (только по Next)
+    upsertPatient({
+      imprintRunStarted: true,
+      imprintModules: { LOH: "idle", CNV: "idle", SNV: "idle" },
+      imprintCreated: false,
+      imprintCreatedAt: "",
+    });
+
+    // переход на первый сабстеп
+    setTimeout(() => setActiveStepId("step2_loh"), 800);
+  }
+
   return (
     <div className="space-y-5">
       <div className="text-lg font-semibold">Step 2 — FASTQ upload</div>
 
       <div className="text-sm text-slate-600">
-        Patient: <span className="font-medium text-slate-900">{patientLabel}</span>{' '}
+        Patient:{" "}
+        <span className="font-medium text-slate-900">{patientLabel}</span>{" "}
         <span className="text-slate-400">({patientId})</span>
       </div>
 
       {stored?.imprintCreated ? (
         <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
-          Imprint already created for this patient.
+          Imprint created for this patient.
         </div>
       ) : null}
 
       <Card className="p-5">
         <div className="flex items-start justify-between gap-3">
           <div>
-            <div className="text-sm font-semibold text-slate-900">Upload files</div>
+            <div className="text-sm font-semibold text-slate-900">
+              Upload files
+            </div>
             <div className="mt-1 text-xs text-slate-500">
-              Normal R1/R2 + Tumor R1/R2 → auto-validate → auto-run LOH→CNV→SNV (в сабстепах слева).
+              Сначала загрузка файлов → потом Validate → после Validate
+              появляется Next → Next запускает LOH→CNV→SNV.
             </div>
           </div>
 
@@ -344,15 +453,27 @@ export function Step2() {
             <input
               type="checkbox"
               checked={tumorAvailable}
-              onChange={e => {
+              onChange={(e) => {
                 const next = e.target.checked;
                 setTumorAvailable(next);
+
+                // при выключении tumor — считаем шаг skipped
                 upsertPatient({
                   tumorAvailable: next,
                   imprintSkipped: !next,
-                  imprintSkipReason: !next ? 'no_tumor' : undefined,
+                  imprintSkipReason: !next ? "no_tumor" : undefined,
+                  imprintValidated: false,
+                  imprintValidationAt: "",
+                  imprintInputsReady: false,
+                  imprintRunStarted: false,
+                  imprintModules: { LOH: "idle", CNV: "idle", SNV: "idle" },
+                  imprintCreated: false,
+                  imprintCreatedAt: "",
                 });
+
+                setGlobalError(null);
               }}
+              disabled={busy}
             />
             Tumor available
           </label>
@@ -360,10 +481,12 @@ export function Step2() {
 
         {!tumorAvailable ? (
           <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
-            Tumor files not available → Step 2 can be skipped.
+            Tumor files not available → Step 2 is skipped.
             <div className="mt-2 text-xs text-slate-600">
-              В Step 3 будет подключен <span className="font-semibold">ImprintAI+</span> (учёт нозологии:{' '}
-              <span className="font-semibold">{state.indication || '—'}</span>).
+              Дальше (Step 3) будет использоваться режим{" "}
+              <span className="font-semibold">ImprintAI+</span> с учётом
+              нозологии:{" "}
+              <span className="font-semibold">{state.indication || "—"}</span>.
             </div>
           </div>
         ) : null}
@@ -375,9 +498,13 @@ export function Step2() {
         ) : null}
 
         <div className="mt-4 grid grid-cols-12 gap-4">
-          {slots.map(s => {
-            const isTumor = s.key === 'tR1' || s.key === 'tR2';
-            const disabled = busy || stored?.imprintCreated || (isTumor && !tumorAvailable);
+          {slots.map((s) => {
+            const isTumor = s.key === "tR1" || s.key === "tR2";
+            const disabled =
+              busy ||
+              !!stored?.imprintCreated ||
+              (stored?.imprintRunStarted ?? false) ||
+              (isTumor && !tumorAvailable);
 
             return (
               <div key={s.key} className="col-span-12 md:col-span-6">
@@ -388,21 +515,29 @@ export function Step2() {
                     type="file"
                     disabled={disabled}
                     accept=".fastq,.fq,.fastq.gz,.fq.gz"
-                    onChange={e => setSlotFile(s.key, e.target.files?.[0] ?? null)}
+                    onChange={(e) =>
+                      setSlotFile(s.key, e.target.files?.[0] ?? null)
+                    }
                     className="w-full text-sm"
                   />
 
                   <div className="mt-2 text-xs text-slate-600">
                     {s.file ? (
                       <div className="truncate">
-                        <span className="font-medium text-slate-900">{s.file.name}</span>{' '}
-                        <span className="text-slate-400">({bytesToHuman(s.file.size)})</span>
+                        <span className="font-medium text-slate-900">
+                          {s.file.name}
+                        </span>{" "}
+                        <span className="text-slate-400">
+                          ({bytesToHuman(s.file.size)})
+                        </span>
                       </div>
                     ) : (
                       <div className="text-slate-500">No file</div>
                     )}
 
-                    {s.error ? <div className="mt-2 text-xs text-red-600">{s.error}</div> : null}
+                    {s.error ? (
+                      <div className="mt-2 text-xs text-red-600">{s.error}</div>
+                    ) : null}
                   </div>
                 </div>
               </div>
@@ -410,10 +545,54 @@ export function Step2() {
           })}
         </div>
 
-        <div className="mt-4 text-xs text-slate-500">
-          Авто-поведение: когда загружены все нужные файлы → валидируем → переводим на LOH (сабстеп в дереве).
-        </div>
+        {/* Actions */}
+        {tumorAvailable ? (
+          <div className="mt-5 flex flex-wrap items-center gap-3">
+            <button
+              type="button"
+              onClick={handleValidate}
+              disabled={validateDisabled}
+              className={[
+                "rounded-full border px-4 py-2 text-sm transition",
+                validateDisabled
+                  ? "border-slate-200 bg-slate-100 text-slate-400"
+                  : "border-slate-200 bg-white hover:border-slate-300 text-slate-800",
+              ].join(" ")}
+            >
+              {busy
+                ? "Validating…"
+                : stored?.imprintValidated
+                ? "Validated ✓"
+                : "Validate"}
+            </button>
+
+            <button
+              type="button"
+              onClick={handleNext}
+              disabled={!nextEnabled}
+              className={[
+                "rounded-full px-5 py-2 text-sm font-medium transition",
+                nextEnabled
+                  ? "bg-slate-900 text-white hover:bg-slate-800"
+                  : "bg-slate-200 text-slate-400",
+              ].join(" ")}
+            >
+              Next
+            </button>
+
+            <div className="text-xs text-slate-500">
+              Next станет активной только после успешного Validate.
+            </div>
+          </div>
+        ) : null}
       </Card>
+
+      <div className="text-xs text-slate-500">
+        Debug: tumor={tumorAvailable ? "yes" : "no"} • validated=
+        {stored?.imprintValidated ? "yes" : "no"} • runStarted=
+        {stored?.imprintRunStarted ? "yes" : "no"} • created=
+        {stored?.imprintCreated ? "yes" : "no"}
+      </div>
     </div>
   );
 }
