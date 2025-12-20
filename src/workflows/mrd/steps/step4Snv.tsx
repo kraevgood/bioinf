@@ -6,7 +6,7 @@ import { useWorkflow } from '@/components/workflow/WorkflowContext';
 import { PatientsStore } from '@/store/patientsStore';
 import type { StoredPatient } from '@/store/patientsStore';
 
-const PROCESS_TIME_MS = 12000;
+const PROCESS_TIME_MS = 6000;
 
 function ProgressBar({ running }: { running: boolean }) {
   if (!running) return null;
