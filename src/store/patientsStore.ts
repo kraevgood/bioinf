@@ -5,14 +5,17 @@ const LS_KEY = 'mrd_patients_v2';
 export type ImprintModuleKey = 'LOH' | 'CNV' | 'SNV';
 export type ImprintModuleState = 'idle' | 'running' | 'done';
 
+// Step4 (Run)
+export type AnalysisChannelKey = 'SNV' | 'CNV';
+export type AnalysisChannelState = 'idle' | 'running' | 'done';
+
+// Step3/4 data model (lightweight demo)
 export type PlasmaSample = {
-  id: string; // unique внутри пациента
+  id: string;
   drawDate: string; // YYYY-MM-DD
-  label: string; // что показываем в UI (например: "Pre-op" / "Post-op Day 30")
-  relationToSurgery?: 'pre_op' | 'post_op' | 'unknown';
-  dayOffset?: number; // days from surgery (e.g. -7, 0, 30)
-  fastqValidated?: boolean;
-  validationAt?: string; // ISO
+  label: string;
+  dayOffset?: number; // relative to surgery date
+  validated?: boolean;
   files?: {
     r1Name?: string;
     r2Name?: string;
@@ -26,22 +29,30 @@ export type StoredPatient = Patient & {
   hasSurgeryDate?: boolean;
   surgeryDate?: string;
 
+  // Step3
+  plasmaSamples?: PlasmaSample[];
+
   // Step2
   tumorAvailable?: boolean; // чекбокс tumor available
   imprintSkipped?: boolean; // если tumor unavailable
   imprintSkipReason?: 'no_tumor'; // причина skip
 
+  // Validate / Next gating (Step2)
   imprintValidated?: boolean; // нажали Validate и успешно прошло
   imprintValidationAt?: string; // ISO timestamp
   imprintRunStarted?: boolean; // нажали Next и стартанули LOH→CNV→SNV
 
-  imprintInputsReady?: boolean; // inputs готовы (валидированы)
+  // Step2 state
+  imprintInputsReady?: boolean; // файлы загружены+валидированы (демо-логика)
   imprintModules?: Record<ImprintModuleKey, ImprintModuleState>;
   imprintCreated?: boolean;
   imprintCreatedAt?: string; // ISO
 
-  // Step3
-  plasmaSamples?: PlasmaSample[];
+  // Step4
+  analysisRunStarted?: boolean;
+  analysisRunAt?: string; // ISO
+  analysisChannels?: Record<AnalysisChannelKey, AnalysisChannelState>;
+  analysisCompleted?: boolean;
 };
 
 function safeParse<T>(raw: string | null): T | null {

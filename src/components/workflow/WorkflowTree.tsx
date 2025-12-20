@@ -1,31 +1,27 @@
-"use client";
+'use client';
 
-import React from "react";
-import type { WorkflowStep, StepStatus } from "@/types/workflow";
-import { useWorkflow } from "./WorkflowContext";
-import { PatientsStore } from "@/store/patientsStore";
+import React from 'react';
+import type { WorkflowStep, StepStatus } from '@/types/workflow';
+import { useWorkflow } from './WorkflowContext';
+import { PatientsStore } from '@/store/patientsStore';
 
 function markerClass(status: StepStatus, active: boolean) {
-  const base =
-    "flex h-7 w-7 items-center justify-center rounded-full border text-xs";
+  const base = 'flex h-7 w-7 items-center justify-center rounded-full border text-xs';
   if (active) return `${base} border-slate-400 bg-slate-50 text-slate-900`;
-  if (status === "done")
-    return `${base} border-emerald-300 bg-emerald-50 text-emerald-800`;
-  if (status === "processing")
-    return `${base} border-amber-300 bg-amber-50 text-amber-900`;
-  if (status === "error")
-    return `${base} border-red-300 bg-red-50 text-red-800`;
+  if (status === 'done') return `${base} border-emerald-300 bg-emerald-50 text-emerald-800`;
+  if (status === 'processing') return `${base} border-amber-300 bg-amber-50 text-amber-900`;
+  if (status === 'error') return `${base} border-red-300 bg-red-50 text-red-800`;
   return `${base} border-slate-200 bg-white text-slate-500`;
 }
 
 function computeStatus(
   stepId: string,
   patientId: string | null,
-  workflowState: { selectedPatient: { id: string } | null }
+  workflowState: { selectedPatient: { id: string } | null },
 ): StepStatus | undefined {
-  // Step1 done = выбран пациент
-  if (stepId === "step1") {
-    return workflowState.selectedPatient ? "done" : undefined;
+  // ✅ Step1 считается пройденным, когда выбран пациент
+  if (stepId === 'step1') {
+    return workflowState.selectedPatient ? 'done' : undefined;
   }
 
   if (!patientId) return undefined;
@@ -33,36 +29,54 @@ function computeStatus(
   if (!p) return undefined;
 
   // Step2 main
-  if (stepId === "step2") {
-    if (p.imprintCreated) return "done";
-    if (p.imprintSkipped) return "done";
-    if (p.imprintInputsReady) return "processing";
+  if (stepId === 'step2') {
+    if (p.imprintCreated) return 'done';
+    if (p.imprintSkipped) return 'done';
+    if (p.imprintInputsReady) return 'processing';
     return undefined;
   }
 
   // Step2 substeps
-  if (stepId === "step2_loh") {
+  if (stepId === 'step2_loh') {
     const s = p.imprintModules?.LOH;
-    if (s === "done") return "done";
-    if (s === "running") return "processing";
+    if (s === 'done') return 'done';
+    if (s === 'running') return 'processing';
     return undefined;
   }
-  if (stepId === "step2_cnv") {
+  if (stepId === 'step2_cnv') {
     const s = p.imprintModules?.CNV;
-    if (s === "done") return "done";
-    if (s === "running") return "processing";
+    if (s === 'done') return 'done';
+    if (s === 'running') return 'processing';
     return undefined;
   }
-  if (stepId === "step2_snv") {
+  if (stepId === 'step2_snv') {
     const s = p.imprintModules?.SNV;
-    if (s === "done") return "done";
-    if (s === "running") return "processing";
+    if (s === 'done') return 'done';
+    if (s === 'running') return 'processing';
     return undefined;
   }
 
-  // ✅ Step3: done если добавлен хотя бы 1 plasma timepoint
-  if (stepId === "step3") {
-    if ((p.plasmaSamples?.length ?? 0) > 0) return "done";
+  // Step4 main
+  if (stepId === 'step4') {
+    if (p.analysisCompleted) return 'done';
+    const snv = p.analysisChannels?.SNV;
+    const cnv = p.analysisChannels?.CNV;
+    if (snv === 'running' || cnv === 'running') return 'processing';
+    if (p.analysisRunStarted && !p.analysisCompleted) return 'processing';
+    return undefined;
+  }
+
+  // Step4 substeps
+  if (stepId === 'step4_snv') {
+    const s = p.analysisChannels?.SNV;
+    if (s === 'done') return 'done';
+    if (s === 'running') return 'processing';
+    return undefined;
+  }
+  if (stepId === 'step4_cnv') {
+    const s = p.analysisChannels?.CNV;
+    if (s === 'done') return 'done';
+    if (s === 'running') return 'processing';
     return undefined;
   }
 
@@ -85,45 +99,33 @@ function TreeItem({
   const { state } = useWorkflow();
   const patientId = state.selectedPatient?.id ?? null;
 
-  const dynStatus = computeStatus(step.id, patientId, {
-    selectedPatient: state.selectedPatient,
-  });
-  const status = dynStatus ?? step.status ?? "idle";
+  const dynStatus = computeStatus(step.id, patientId, { selectedPatient: state.selectedPatient });
+  const status = dynStatus ?? step.status ?? 'idle';
   const active = activeId === step.id;
 
-  const isSub = step.kind === "substep";
-  const markerText = isSub ? "" : String(index ?? "");
+  const isSub = step.kind === 'substep';
+  const markerText = isSub ? '' : String(index ?? '');
 
   return (
-    <div className={depth > 0 ? "ml-10" : ""}>
+    <div className={depth > 0 ? 'ml-10' : ''}>
       <button
         type="button"
         onClick={() => onSelect(step.id)}
         className={[
-          "w-full rounded-2xl border px-4 py-3 text-left transition",
-          active
-            ? "border-slate-300 bg-slate-50"
-            : "border-slate-200 bg-white hover:border-slate-300",
-        ].join(" ")}
+          'w-full rounded-2xl border px-4 py-3 text-left transition',
+          active ? 'border-slate-300 bg-slate-50' : 'border-slate-200 bg-white hover:border-slate-300',
+        ].join(' ')}
       >
         <div className="flex items-start gap-3">
           <div className="pt-0.5">
-            <div className={markerClass(status, active)}>
-              {status === "done" ? "✓" : markerText}
-            </div>
+            <div className={markerClass(status, active)}>{status === 'done' ? '✓' : markerText}</div>
           </div>
 
           <div className="min-w-0 flex-1">
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
-                <div className="text-sm font-semibold text-slate-900">
-                  {step.title}
-                </div>
-                {step.subtitle ? (
-                  <div className="mt-1 text-xs text-slate-500">
-                    {step.subtitle}
-                  </div>
-                ) : null}
+                <div className="text-sm font-semibold text-slate-900">{step.title}</div>
+                {step.subtitle ? <div className="mt-1 text-xs text-slate-500">{step.subtitle}</div> : null}
               </div>
 
               {step.badgeText ? (
@@ -142,14 +144,8 @@ function TreeItem({
           <div className="absolute left-3.5 top-0 h-full w-px bg-slate-200" />
 
           <div className="space-y-3">
-            {step.children.map((child) => (
-              <TreeItem
-                key={child.id}
-                step={child}
-                activeId={activeId}
-                onSelect={onSelect}
-                depth={depth + 1}
-              />
+            {step.children.map(child => (
+              <TreeItem key={child.id} step={child} activeId={activeId} onSelect={onSelect} depth={depth + 1} />
             ))}
           </div>
         </div>
@@ -170,14 +166,7 @@ export function WorkflowTree({
   return (
     <div className="space-y-3">
       {steps.map((step, i) => (
-        <TreeItem
-          key={step.id}
-          step={step}
-          activeId={activeId}
-          onSelect={onSelect}
-          depth={0}
-          index={i + 1}
-        />
+        <TreeItem key={step.id} step={step} activeId={activeId} onSelect={onSelect} depth={0} index={i + 1} />
       ))}
     </div>
   );

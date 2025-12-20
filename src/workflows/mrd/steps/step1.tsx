@@ -161,7 +161,7 @@ export function Step1() {
 
           <ul className="mt-4 list-disc space-y-2 pl-5 text-sm text-slate-700">
             <li>Созданный кейс + метаданные (mock)</li>
-            <li>Если у пациента уже есть imprint → подсветим Step 2 (позже)</li>
+            <li>Если у пациента уже есть imprint → подсветим Step 2</li>
             <li>Нозология + дата операции сохраняются на пациента</li>
           </ul>
         </Card>

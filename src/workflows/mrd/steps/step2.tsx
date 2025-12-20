@@ -105,7 +105,6 @@ export function Step2() {
     { key: "tR2", title: "Tumor FASTQ — R2", file: null },
   ]);
 
-
   const [busy, setBusy] = React.useState(false);
   const [globalError, setGlobalError] = React.useState<string | null>(null);
 
