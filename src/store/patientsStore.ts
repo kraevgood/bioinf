@@ -1,13 +1,13 @@
-import type { Patient } from '@/types/workflowState';
+import type { Patient } from "@/types/workflowState";
 
-const LS_KEY = 'mrd_patients_v2';
+const LS_KEY = "mrd_patients_v2";
 
-export type ImprintModuleKey = 'LOH' | 'CNV' | 'SNV';
-export type ImprintModuleState = 'idle' | 'running' | 'done';
+export type ImprintModuleKey = "LOH" | "CNV" | "SNV";
+export type ImprintModuleState = "idle" | "running" | "done";
 
 // Step4 (Run)
-export type AnalysisChannelKey = 'SNV' | 'CNV';
-export type AnalysisChannelState = 'idle' | 'running' | 'done';
+export type AnalysisChannelKey = "SNV" | "CNV";
+export type AnalysisChannelState = "idle" | "running" | "done";
 
 // Step3/4 data model (lightweight demo)
 export type PlasmaSample = {
@@ -17,6 +17,8 @@ export type PlasmaSample = {
   relationToSurgery?: string;
   dayOffset?: number; // relative to surgery date
   validated?: boolean;
+  fastqValidated?: boolean;
+  validationAt?: string;
   files?: {
     r1Name?: string;
     r2Name?: string;
@@ -36,7 +38,7 @@ export type StoredPatient = Patient & {
   // Step2
   tumorAvailable?: boolean; // чекбокс tumor available
   imprintSkipped?: boolean; // если tumor unavailable
-  imprintSkipReason?: 'no_tumor'; // причина skip
+  imprintSkipReason?: "no_tumor"; // причина skip
 
   // Validate / Next gating (Step2)
   imprintValidated?: boolean; // нажали Validate и успешно прошло
@@ -83,19 +85,22 @@ export const PatientsStore = {
 
   findById(id: string): StoredPatient | undefined {
     const key = id.trim().toLowerCase();
-    return this.list().find(x => x.id.trim().toLowerCase() === key);
+    return this.list().find((x) => x.id.trim().toLowerCase() === key);
   },
 
-  upsert(p: StoredPatient): { patients: StoredPatient[]; saved: StoredPatient } {
+  upsert(p: StoredPatient): {
+    patients: StoredPatient[];
+    saved: StoredPatient;
+  } {
     const patients = this.list();
 
-    const id = (p.id ?? '').trim();
-    if (!id) throw new Error('Patient.id is required');
+    const id = (p.id ?? "").trim();
+    if (!id) throw new Error("Patient.id is required");
 
     const label = (p.label || id).trim() || id;
     const key = id.toLowerCase();
 
-    const idx = patients.findIndex(x => x.id.trim().toLowerCase() === key);
+    const idx = patients.findIndex((x) => x.id.trim().toLowerCase() === key);
 
     if (idx >= 0) {
       const merged: StoredPatient = { ...patients[idx], ...p, id, label };
@@ -114,7 +119,7 @@ export const PatientsStore = {
   remove(id: string): StoredPatient[] {
     const patients = this.list();
     const key = id.trim().toLowerCase();
-    const next = patients.filter(p => p.id.trim().toLowerCase() !== key);
+    const next = patients.filter((p) => p.id.trim().toLowerCase() !== key);
     this.saveAll(next);
     return next;
   },
@@ -125,7 +130,8 @@ export const PatientsStore = {
 
   importJson(json: string): StoredPatient[] {
     const parsed = safeParse<StoredPatient[]>(json);
-    if (!Array.isArray(parsed)) throw new Error('Invalid JSON (expected array)');
+    if (!Array.isArray(parsed))
+      throw new Error("Invalid JSON (expected array)");
     this.saveAll(parsed);
     return parsed;
   },
