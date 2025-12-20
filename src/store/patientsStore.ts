@@ -14,6 +14,7 @@ export type PlasmaSample = {
   id: string;
   drawDate: string; // YYYY-MM-DD
   label: string;
+  relationToSurgery?: string;
   dayOffset?: number; // relative to surgery date
   validated?: boolean;
   files?: {
