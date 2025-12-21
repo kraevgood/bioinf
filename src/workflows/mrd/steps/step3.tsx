@@ -136,8 +136,14 @@ function FileUploadRow({
   );
 }
 
+/**
+ * ВАЖНО:
+ * Раньше при отсутствии surgeryDate возвращалось "first plasma".
+ * Из-за этого любая точка без операции выглядела одинаково.
+ * Теперь: если операции нет — relation = "—" (то есть "не определено").
+ */
 function computeRelation(drawDateISO: string, surgeryDateISO?: string) {
-  if (!surgeryDateISO) return { relation: 'first plasma', dayOffset: 0 };
+  if (!surgeryDateISO) return { relation: '—', dayOffset: 0 };
 
   const draw = new Date(drawDateISO);
   const surg = new Date(surgeryDateISO);
@@ -150,12 +156,25 @@ function computeRelation(drawDateISO: string, surgeryDateISO?: string) {
   return { relation: `post-op day ${dayOffset}`, dayOffset };
 }
 
+/**
+ * Генерируем display label от даты взятия плазмы.
+ * - База: "Plasma YYYY-MM-DD"
+ * - Если есть операция: добавляем "(pre-op day X / day 0 / post-op day X)"
+ */
+function makeAutoLabel(drawDateISO: string, surgeryDateISO?: string) {
+  const base = `Plasma ${drawDateISO}`;
+  if (!surgeryDateISO) return base;
+
+  const rel = computeRelation(drawDateISO, surgeryDateISO).relation;
+  return rel && rel !== '—' ? `${base} (${rel})` : base;
+}
+
 export function Step3() {
   const { state } = useWorkflow();
   const patientId = state.selectedPatient?.id ?? null;
 
   const [drawDate, setDrawDate] = React.useState<string>(''); // yyyy-mm-dd
-  const [customLabel, setCustomLabel] = React.useState<string>('');
+  const [customLabel, setCustomLabel] = React.useState<string>(''); // оставляем как есть (может пригодиться позже)
 
   const [slots, setSlots] = React.useState<Slot[]>([
     { key: 'pR1', title: 'Plasma FASTQ — R1', file: null },
@@ -262,7 +281,9 @@ export function Step3() {
         ? `plasma_${crypto.randomUUID()}`
         : `plasma_${drawDate}_${r1.name}_${r2.name}`;
 
-    const finalLabel = customLabel?.trim() || computed.relation;
+    // ключевое изменение: label теперь зависит от даты взятия плазмы
+    const autoLabel = makeAutoLabel(drawDate, surgeryDateISO);
+    const finalLabel = customLabel?.trim() || autoLabel;
 
     const sample: PlasmaSample = {
       id,
@@ -309,13 +330,18 @@ export function Step3() {
   const canValidate = !validating;
   const canAdd = validated && !validating;
 
+  // что показывать как "Label" в превью
+  const previewLabel = drawDate ? (customLabel?.trim() || makeAutoLabel(drawDate, stored?.surgeryDate)) : '—';
+
   return (
     <div className="space-y-5">
       <div className="text-lg font-semibold">Step 3 — Add plasma sample</div>
 
+      {/* ключевое изменение: показываем дату операции рядом с пациентом */}
       <div className="text-sm text-slate-600">
         Patient: <span className="font-medium text-slate-900">{patientLabel}</span>{' '}
         <span className="text-slate-400">({patientId})</span>
+        <span className="text-slate-400"> • Surgery: {stored?.surgeryDate ?? '—'}</span>
       </div>
 
       <Card className="p-5">
@@ -339,14 +365,19 @@ export function Step3() {
               className="mt-1 w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-slate-300"
             />
             <div className="mt-2 text-xs text-slate-500">
-              Label: <span className="font-medium text-slate-800">{customLabel?.trim() || rel?.relation || '—'}</span>
+              Label: <span className="font-medium text-slate-800">{previewLabel}</span>
             </div>
+            {/* customLabel остаётся в стейте (может пригодиться позже), но сейчас UI для ввода не добавляю,
+                чтобы не ломать/не расширять твой текущий UX без запроса */}
           </div>
 
           <div className="col-span-12 md:col-span-6">
             <div className="text-xs text-slate-500">Mode</div>
             <div className="mt-1 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-medium text-slate-800">
               {modeValue}
+            </div>
+            <div className="mt-2 text-xs text-slate-500">
+              Relation: <span className="font-medium text-slate-800">{rel?.relation ?? '—'}</span>
             </div>
           </div>
 
