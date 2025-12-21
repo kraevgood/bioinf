@@ -66,6 +66,13 @@ function FileUploadRow({
 }) {
   const inputRef = React.useRef<HTMLInputElement | null>(null);
 
+  // ✅ важно: если стейт сбросили (file=null), сбрасываем и DOM-input value
+  React.useEffect(() => {
+    if (!file && inputRef.current) {
+      inputRef.current.value = '';
+    }
+  }, [file]);
+
   const border = error ? 'border-red-200' : validatedOk ? 'border-emerald-200' : 'border-slate-200';
   const bg = error ? 'bg-red-50' : validatedOk ? 'bg-emerald-50' : 'bg-white';
 
@@ -99,7 +106,13 @@ function FileUploadRow({
               className="hidden"
               disabled={disabled}
               accept=".fastq,.fq,.fastq.gz,.fq.gz"
-              onChange={e => onPick(e.target.files?.[0] ?? null)}
+              onChange={e => {
+                const f = e.currentTarget.files?.[0] ?? null;
+                onPick(f);
+
+                // ✅ критично: сброс, чтобы можно было выбрать тот же файл снова
+                e.currentTarget.value = '';
+              }}
             />
 
             <button
@@ -119,7 +132,11 @@ function FileUploadRow({
             <button
               type="button"
               disabled={disabled || !file}
-              onClick={onClear}
+              onClick={() => {
+                onClear();
+                // ✅ и тут тоже
+                if (inputRef.current) inputRef.current.value = '';
+              }}
               className={[
                 'rounded-xl border px-3 py-2 text-xs font-semibold',
                 disabled || !file
@@ -135,6 +152,7 @@ function FileUploadRow({
     </div>
   );
 }
+
 
 /**
  * ВАЖНО:

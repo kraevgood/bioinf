@@ -550,7 +550,7 @@ export function Step2() {
               !canNext ? 'border-slate-200 bg-slate-100 text-slate-400' : 'border-slate-200 bg-white text-slate-800 hover:bg-slate-50',
             ].join(' ')}
           >
-            Next
+            Start
           </button>
 
           {tumorAvailable && !stored?.imprintValidated ? <div className="text-xs text-slate-500">Validate to enable Next.</div> : null}
