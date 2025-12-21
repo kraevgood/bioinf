@@ -186,12 +186,6 @@ export function Step1() {
             </div>
           </div>
         </div>
-
-        <div className="mt-5 text-xs text-slate-500">
-          Current: patient={state.selectedPatient ? "yes" : "no"} • caseId=
-          {state.caseId ? "yes" : "no"} • surgeryDate=
-          {state.hasSurgeryDate ? "yes" : "no"}
-        </div>
       </Card>
     </div>
   );
