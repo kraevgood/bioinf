@@ -423,7 +423,7 @@ export function PatientsModal({
                   <input
                     value={formId}
                     onChange={(e) => setFormId(e.target.value)}
-                    placeholder="e.g., CASE-102"
+                    placeholder="e.g., CASE-100"
                     disabled={!isDraft} // id нельзя менять у существующего (иначе создадим нового)
                     className={[
                       "mt-1 w-full rounded-xl border bg-white px-4 py-3 text-sm outline-none focus:border-slate-300",
@@ -446,7 +446,7 @@ export function PatientsModal({
                   <input
                     value={formLabel}
                     onChange={(e) => setFormLabel(e.target.value)}
-                    placeholder="e.g., Kraeva E.A."
+                    placeholder="e.g., Ivanov I.I."
                     className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-slate-300"
                   />
                 </div>
