@@ -1,12 +1,12 @@
-"use client";
+'use client';
 
-import React from "react";
-import { Card } from "@/components/ui/Card";
-import { useWorkflow } from "@/components/workflow/WorkflowContext";
-import { PatientsStore } from "@/store/patientsStore";
-import type { PlasmaSample } from "@/store/patientsStore";
+import React from 'react';
+import { Card } from '@/components/ui/Card';
+import { useWorkflow } from '@/components/workflow/WorkflowContext';
+import { PatientsStore } from '@/store/patientsStore';
+import type { PlasmaSample } from '@/store/patientsStore';
 
-type FileSlotKey = "pR1" | "pR2";
+type FileSlotKey = 'pR1' | 'pR2';
 
 type Slot = {
   key: FileSlotKey;
@@ -15,18 +15,15 @@ type Slot = {
   error?: string;
 };
 
+const VALIDATE_TIME_MS = 3000; // имитация времени проверки (3s)
+
 function extOk(name: string) {
   const n = name.toLowerCase();
-  return (
-    n.endsWith(".fastq") ||
-    n.endsWith(".fq") ||
-    n.endsWith(".fastq.gz") ||
-    n.endsWith(".fq.gz")
-  );
+  return n.endsWith('.fastq') || n.endsWith('.fq') || n.endsWith('.fastq.gz') || n.endsWith('.fq.gz');
 }
 
 function bytesToHuman(n: number) {
-  const units = ["B", "KB", "MB", "GB"];
+  const units = ['B', 'KB', 'MB', 'GB'];
   let i = 0;
   let v = n;
   while (v >= 1024 && i < units.length - 1) {
@@ -36,85 +33,138 @@ function bytesToHuman(n: number) {
   return `${v.toFixed(i === 0 ? 0 : 1)} ${units[i]}`;
 }
 
-function daysBetween(aYYYYMMDD: string, bYYYYMMDD: string): number | null {
-  if (!aYYYYMMDD || !bYYYYMMDD) return null;
-  const a = new Date(`${aYYYYMMDD}T00:00:00`);
-  const b = new Date(`${bYYYYMMDD}T00:00:00`);
-  const ms = a.getTime() - b.getTime();
-  if (Number.isNaN(ms)) return null;
-  return Math.round(ms / (1000 * 60 * 60 * 24));
+function Spinner({ className = '' }: { className?: string }) {
+  return (
+    <span
+      className={[
+        'inline-block h-4 w-4 animate-spin rounded-full border-2 border-slate-300 border-t-slate-700',
+        className,
+      ].join(' ')}
+      aria-label="loading"
+    />
+  );
 }
 
-function makePlasmaLabel(
-  drawDate: string,
-  surgeryDate?: string,
-  hasSurgeryDate?: boolean
-) {
-  if (!drawDate)
-    return {
-      label: "—",
-      relation: "unknown" as const,
-      dayOffset: undefined as number | undefined,
-    };
+function FileUploadRow({
+  title,
+  file,
+  error,
+  disabled,
+  validating,
+  validatedOk,
+  onPick,
+  onClear,
+}: {
+  title: string;
+  file: File | null;
+  error?: string;
+  disabled: boolean;
+  validating: boolean;
+  validatedOk: boolean;
+  onPick: (f: File | null) => void;
+  onClear: () => void;
+}) {
+  const inputRef = React.useRef<HTMLInputElement | null>(null);
 
-  if (hasSurgeryDate && surgeryDate) {
-    const d = daysBetween(drawDate, surgeryDate);
-    if (d === null)
-      return {
-        label: drawDate,
-        relation: "unknown" as const,
-        dayOffset: undefined,
-      };
+  const border = error ? 'border-red-200' : validatedOk ? 'border-emerald-200' : 'border-slate-200';
+  const bg = error ? 'bg-red-50' : validatedOk ? 'bg-emerald-50' : 'bg-white';
 
-    if (d < 0)
-      return {
-        label: `Pre-op (D${d})`,
-        relation: "pre_op" as const,
-        dayOffset: d,
-      };
-    if (d === 0)
-      return {
-        label: "Pre-op (Day 0)",
-        relation: "pre_op" as const,
-        dayOffset: 0,
-      };
-    return {
-      label: `Post-op Day ${d}`,
-      relation: "post_op" as const,
-      dayOffset: d,
-    };
-  }
+  return (
+    <div className="space-y-1">
+      <div className="text-xs text-slate-500">{title}</div>
 
-  // если нет surgery date — просто используем дату
-  return {
-    label: `Plasma • ${drawDate}`,
-    relation: "unknown" as const,
-    dayOffset: undefined,
-  };
+      <div className={['rounded-2xl border px-4 py-3', border, bg].join(' ')}>
+        <div className="flex items-center justify-between gap-3">
+          <div className="min-w-0 flex-1">
+            {file ? (
+              <div className="truncate text-sm">
+                <span className="font-medium text-slate-900">{file.name}</span>{' '}
+                <span className="text-slate-400">({bytesToHuman(file.size)})</span>
+              </div>
+            ) : (
+              <div className="text-sm text-slate-500">No file selected</div>
+            )}
+
+            {error ? <div className="mt-1 text-xs text-red-700">{error}</div> : null}
+            {!error && validatedOk ? <div className="mt-1 text-xs text-emerald-700">✓ Validated</div> : null}
+          </div>
+
+          <div className="flex items-center gap-2">
+            {validating ? <Spinner /> : null}
+            {!validating && validatedOk ? <span className="text-emerald-700 text-sm font-semibold">✓</span> : null}
+
+            <input
+              ref={inputRef}
+              type="file"
+              className="hidden"
+              disabled={disabled}
+              accept=".fastq,.fq,.fastq.gz,.fq.gz"
+              onChange={e => onPick(e.target.files?.[0] ?? null)}
+            />
+
+            <button
+              type="button"
+              disabled={disabled}
+              onClick={() => inputRef.current?.click()}
+              className={[
+                'rounded-xl border px-3 py-2 text-xs font-semibold',
+                disabled
+                  ? 'border-slate-200 bg-slate-100 text-slate-400'
+                  : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50',
+              ].join(' ')}
+            >
+              Browse
+            </button>
+
+            <button
+              type="button"
+              disabled={disabled || !file}
+              onClick={onClear}
+              className={[
+                'rounded-xl border px-3 py-2 text-xs font-semibold',
+                disabled || !file
+                  ? 'border-slate-200 bg-slate-100 text-slate-400'
+                  : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50',
+              ].join(' ')}
+            >
+              Clear
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function computeRelation(drawDateISO: string, surgeryDateISO?: string) {
+  if (!surgeryDateISO) return { relation: 'first plasma', dayOffset: 0 };
+
+  const draw = new Date(drawDateISO);
+  const surg = new Date(surgeryDateISO);
+
+  const diffMs = draw.getTime() - surg.getTime();
+  const dayOffset = Math.round(diffMs / (24 * 60 * 60 * 1000));
+
+  if (dayOffset < 0) return { relation: `pre-op day ${Math.abs(dayOffset)}`, dayOffset };
+  if (dayOffset === 0) return { relation: 'day 0', dayOffset };
+  return { relation: `post-op day ${dayOffset}`, dayOffset };
 }
 
 export function Step3() {
   const { state } = useWorkflow();
   const patientId = state.selectedPatient?.id ?? null;
 
-  const [drawDate, setDrawDate] = React.useState("");
-  const [customLabel, setCustomLabel] = React.useState("");
+  const [drawDate, setDrawDate] = React.useState<string>(''); // yyyy-mm-dd
+  const [customLabel, setCustomLabel] = React.useState<string>('');
 
   const [slots, setSlots] = React.useState<Slot[]>([
-    { key: "pR1", title: "Plasma FASTQ — R1", file: null },
-    { key: "pR2", title: "Plasma FASTQ — R2", file: null },
+    { key: 'pR1', title: 'Plasma FASTQ — R1', file: null },
+    { key: 'pR2', title: 'Plasma FASTQ — R2', file: null },
   ]);
 
-  const [validated, setValidated] = React.useState(false);
-  const [busy, setBusy] = React.useState(false);
   const [globalError, setGlobalError] = React.useState<string | null>(null);
-
-  const stored = patientId ? PatientsStore.findById(patientId) : undefined;
-  const hasSurgeryDate = !!stored?.hasSurgeryDate;
-  const surgeryDate = stored?.surgeryDate;
-
-  const computed = makePlasmaLabel(drawDate, surgeryDate, hasSurgeryDate);
-  const finalLabel = (customLabel || computed.label).trim();
+  const [validating, setValidating] = React.useState(false);
+  const [validated, setValidated] = React.useState(false);
 
   function upsertPatient(patch: Record<string, unknown>) {
     if (!patientId) return;
@@ -126,407 +176,261 @@ export function Step3() {
   }
 
   function setSlotFile(key: FileSlotKey, file: File | null) {
-    setSlots((prev) =>
-      prev.map((s) => (s.key === key ? { ...s, file, error: undefined } : s))
+    setSlots(prev =>
+      prev.map(s => {
+        if (s.key !== key) return s;
+        return { ...s, file, error: undefined };
+      }),
     );
     setValidated(false);
     setGlobalError(null);
   }
 
-  function allRequiredReady(): boolean {
-    const r1 = slots.find((s) => s.key === "pR1")?.file;
-    const r2 = slots.find((s) => s.key === "pR2")?.file;
-    return !!drawDate && !!r1 && !!r2;
+  function clearSlot(key: FileSlotKey) {
+    setSlotFile(key, null);
   }
 
   function validateInputs(): boolean {
     setGlobalError(null);
 
-    if (!drawDate) {
-      setGlobalError("Select plasma draw date first.");
-      return false;
-    }
-
     let ok = true;
-
-    setSlots((prev) =>
-      prev.map((s) => {
+    setSlots(prev =>
+      prev.map(s => {
         if (!s.file) {
           ok = false;
-          return { ...s, error: "File required" };
+          return { ...s, error: 'File required' };
         }
         if (!extOk(s.file.name)) {
           ok = false;
-          return { ...s, error: "Invalid extension (fastq/fq/fastq.gz/fq.gz)" };
+          return { ...s, error: 'Invalid extension (fastq/fq/fastq.gz/fq.gz)' };
         }
         if (s.file.size <= 0) {
           ok = false;
-          return { ...s, error: "File is empty" };
+          return { ...s, error: 'File is empty' };
         }
         return { ...s, error: undefined };
-      })
+      }),
     );
 
-    if (!ok) setGlobalError("Fix file errors first.");
+    if (!drawDate) {
+      ok = false;
+      setGlobalError('Select plasma draw date first.');
+    }
+
+    if (!ok && !globalError) setGlobalError('Fix file errors first.');
     return ok;
   }
 
-  const validateDisabled = busy || validated || !allRequiredReady();
-
-  function handleValidate() {
+  async function handleValidate() {
     if (!patientId) return;
-    if (!allRequiredReady()) {
-      setGlobalError("Upload R1/R2 and select draw date to enable validation.");
+
+    const r1 = slots.find(s => s.key === 'pR1')?.file;
+    const r2 = slots.find(s => s.key === 'pR2')?.file;
+
+    if (!drawDate || !r1 || !r2) {
+      setGlobalError('Select date and upload Plasma R1/R2 first.');
+      validateInputs();
       return;
     }
+
     const ok = validateInputs();
     if (!ok) return;
 
-    setBusy(true);
-    setTimeout(() => {
-      setBusy(false);
-      setValidated(true);
-      setGlobalError(null);
-    }, 900);
+    setValidating(true);
+    await new Promise<void>(resolve => setTimeout(resolve, VALIDATE_TIME_MS));
+    setValidating(false);
+    setValidated(true);
   }
 
-  function handleAddSample() {
+  function handleAddTimepoint() {
     if (!patientId) return;
-    if (!validated) return;
+    if (!validated) {
+      setGlobalError('Validate to enable Add.');
+      return;
+    }
 
-    const r1 = slots.find((s) => s.key === "pR1")?.file;
-    const r2 = slots.find((s) => s.key === "pR2")?.file;
+    const r1 = slots.find(s => s.key === 'pR1')?.file;
+    const r2 = slots.find(s => s.key === 'pR2')?.file;
+    if (!r1 || !r2 || !drawDate) return;
 
-    const baseIndex = (stored?.plasmaSamples?.length ?? 0) + 1;
+    const stored = PatientsStore.findById(patientId);
+    const surgeryDateISO = stored?.surgeryDate;
+    const computed = computeRelation(drawDate, surgeryDateISO);
 
     const id =
-      typeof crypto !== "undefined" && "randomUUID" in crypto
+      typeof crypto !== 'undefined' && 'randomUUID' in crypto
         ? `plasma_${crypto.randomUUID()}`
-        : `plasma_${patientId}_${drawDate}_${baseIndex}`;
+        : `plasma_${drawDate}_${r1.name}_${r2.name}`;
+
+    const finalLabel = customLabel?.trim() || computed.relation;
 
     const sample: PlasmaSample = {
       id,
       drawDate,
-      label: finalLabel || drawDate,
+      label: finalLabel,
       relationToSurgery: computed.relation,
       dayOffset: computed.dayOffset,
       fastqValidated: true,
       validationAt: new Date().toISOString(),
       files: {
-        r1Name: r1?.name,
-        r2Name: r2?.name,
-        r1Size: r1?.size,
-        r2Size: r2?.size,
+        r1Name: r1.name,
+        r2Name: r2.name,
+        r1Size: r1.size,
+        r2Size: r2.size,
       },
     };
 
-    const prev = stored?.plasmaSamples ?? [];
-    upsertPatient({ plasmaSamples: [sample, ...prev] });
+    const nextSamples = [...(stored?.plasmaSamples ?? []), sample];
+    upsertPatient({ plasmaSamples: nextSamples });
 
     // reset draft for next timepoint
-    setDrawDate("");
-    setCustomLabel("");
-    setSlots([
-      { key: "pR1", title: "Plasma FASTQ — R1", file: null },
-      { key: "pR2", title: "Plasma FASTQ — R2", file: null },
-    ]);
+    setDrawDate('');
+    setCustomLabel('');
+    setSlots(prev => prev.map(s => ({ ...s, file: null, error: undefined })));
     setValidated(false);
     setGlobalError(null);
-  }
-
-  function removeSample(id: string) {
-    if (!patientId) return;
-    const next = (stored?.plasmaSamples ?? []).filter((x) => x.id !== id);
-    upsertPatient({ plasmaSamples: next });
-  }
-
-  function clearAllSamples() {
-    if (!patientId) return;
-    upsertPatient({ plasmaSamples: [] });
   }
 
   if (!patientId) {
     return (
       <div className="space-y-2">
         <div className="text-lg font-semibold">Step 3 — Add plasma sample</div>
-        <div className="text-sm text-slate-600">
-          Сначала выбери пациента на Step 1.
-        </div>
+        <div className="text-sm text-slate-600">Сначала выбери пациента на Step 1.</div>
       </div>
     );
   }
 
+  const stored = PatientsStore.findById(patientId);
   const patientLabel = state.selectedPatient?.label ?? patientId;
+
+  const modeValue = stored?.imprintCreated ? 'tumor-informed' : 'indication-guided';
+  const rel = drawDate ? computeRelation(drawDate, stored?.surgeryDate) : null;
+
+  const canValidate = !validating;
+  const canAdd = validated && !validating;
 
   return (
     <div className="space-y-5">
       <div className="text-lg font-semibold">Step 3 — Add plasma sample</div>
 
       <div className="text-sm text-slate-600">
-        Patient:{" "}
-        <span className="font-medium text-slate-900">{patientLabel}</span>{" "}
+        Patient: <span className="font-medium text-slate-900">{patientLabel}</span>{' '}
         <span className="text-slate-400">({patientId})</span>
       </div>
 
-      {/* Blue marker card */}
-      <div className="rounded-2xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-900">
-        <div className="font-semibold">Plasma labeling</div>
-        <div className="mt-1 text-xs text-sky-800">
-          Label is linked to plasma draw date
-          {hasSurgeryDate && surgeryDate
-            ? ` and surgery date (${surgeryDate}).`
-            : "."}
-        </div>
-        <div className="mt-2 text-xs text-sky-900">
-          Suggested label:{" "}
-          <span className="rounded-full bg-sky-100 px-2 py-1 font-semibold">
-            {computed.label}
-          </span>
-          {hasSurgeryDate && surgeryDate ? (
-            <span className="ml-2 text-sky-700">
-              {computed.dayOffset !== undefined
-                ? `Δdays=${computed.dayOffset}`
-                : ""}
-            </span>
-          ) : null}
-        </div>
-      </div>
-
       <Card className="p-5">
-        <div className="text-sm font-semibold text-slate-900">Timepoint</div>
-
-        <div className="mt-4 grid grid-cols-12 gap-4">
-          <div className="col-span-12 md:col-span-6">
-            <label className="text-xs text-slate-500">Plasma draw date</label>
-            <input
-              type="date"
-              value={drawDate}
-              onChange={(e) => {
-                setDrawDate(e.target.value);
-                setValidated(false);
-                setGlobalError(null);
-              }}
-              className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-slate-300"
-            />
-            <div className="mt-1 text-xs text-slate-500">
-              Маркировка строится от этой даты (и surgery date, если задана).
-            </div>
-          </div>
-
-          <div className="col-span-12 md:col-span-6">
-            <label className="text-xs text-slate-500">
-              Custom label (optional)
-            </label>
-            <input
-              value={customLabel}
-              onChange={(e) => {
-                setCustomLabel(e.target.value);
-                setValidated(false);
-              }}
-              placeholder="e.g., First plasma / Pre-op baseline"
-              className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-slate-300"
-            />
-            <div className="mt-1 text-xs text-slate-500">
-              По умолчанию используем suggested label.
-            </div>
-          </div>
-        </div>
-
-        <div className="mt-5 text-sm font-semibold text-slate-900">
-          FASTQ upload
-        </div>
-        <div className="mt-1 text-xs text-slate-500">
-          Plasma R1/R2 → Validate → Add sample (как в Step 2).
-        </div>
-
         {globalError ? (
-          <div className="mt-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
             {globalError}
           </div>
         ) : null}
 
-        <div className="mt-4 grid grid-cols-12 gap-4">
-          {slots.map((s) => (
-            <div key={s.key} className="col-span-12 md:col-span-6">
-              <div className="text-xs text-slate-500">{s.title}</div>
+        <div className="grid grid-cols-12 gap-4">
+          <div className="col-span-12 md:col-span-6">
+            <div className="text-xs text-slate-500">Plasma draw date</div>
+            <input
+              type="date"
+              value={drawDate}
+              onChange={e => {
+                setDrawDate(e.target.value);
+                setValidated(false);
+                setGlobalError(null);
+              }}
+              className="mt-1 w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-slate-300"
+            />
+            <div className="mt-2 text-xs text-slate-500">
+              Label: <span className="font-medium text-slate-800">{customLabel?.trim() || rel?.relation || '—'}</span>
+            </div>
+          </div>
 
-              <div className="mt-1 rounded-2xl border border-slate-200 bg-white px-4 py-3">
-                <input
-                  type="file"
-                  disabled={busy}
-                  accept=".fastq,.fq,.fastq.gz,.fq.gz"
-                  onChange={(e) =>
-                    setSlotFile(s.key, e.target.files?.[0] ?? null)
-                  }
-                  className="w-full text-sm"
-                />
+          <div className="col-span-12 md:col-span-6">
+            <div className="text-xs text-slate-500">Mode</div>
+            <div className="mt-1 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-medium text-slate-800">
+              {modeValue}
+            </div>
+          </div>
 
-                <div className="mt-2 text-xs text-slate-600">
-                  {s.file ? (
-                    <div className="truncate">
-                      <span className="font-medium text-slate-900">
-                        {s.file.name}
-                      </span>{" "}
-                      <span className="text-slate-400">
-                        ({bytesToHuman(s.file.size)})
-                      </span>
+          <div className="col-span-12">
+            <div className="mt-1 rounded-2xl border border-slate-200 bg-white p-4">
+              <div className="grid grid-cols-12 gap-4">
+                {slots.map(s => {
+                  const validatedOk = validated && !!s.file && !s.error;
+                  return (
+                    <div key={s.key} className="col-span-12 md:col-span-6">
+                      <FileUploadRow
+                        title={s.title}
+                        file={s.file}
+                        error={s.error}
+                        disabled={validating}
+                        validating={validating}
+                        validatedOk={validatedOk}
+                        onPick={f => setSlotFile(s.key, f)}
+                        onClear={() => clearSlot(s.key)}
+                      />
                     </div>
-                  ) : (
-                    <div className="text-slate-500">No file</div>
-                  )}
+                  );
+                })}
+              </div>
 
-                  {s.error ? (
-                    <div className="mt-2 text-xs text-red-600">{s.error}</div>
-                  ) : null}
-                </div>
+              <div className="mt-4 flex flex-wrap items-center gap-3">
+                <button
+                  type="button"
+                  disabled={!canValidate}
+                  onClick={handleValidate}
+                  className={[
+                    'inline-flex items-center gap-2 rounded-2xl border px-5 py-2 text-sm font-semibold',
+                    !canValidate
+                      ? 'border-slate-200 bg-slate-100 text-slate-400'
+                      : 'border-slate-200 bg-white text-slate-800 hover:bg-slate-50',
+                  ].join(' ')}
+                >
+                  {validating ? <Spinner /> : null}
+                  {validating ? 'Validating…' : 'Validate'}
+                </button>
+
+                <button
+                  type="button"
+                  disabled={!canAdd}
+                  onClick={handleAddTimepoint}
+                  className={[
+                    'rounded-2xl border px-5 py-2 text-sm font-semibold',
+                    !canAdd
+                      ? 'border-slate-200 bg-slate-100 text-slate-400'
+                      : 'border-slate-200 bg-white text-slate-800 hover:bg-slate-50',
+                  ].join(' ')}
+                >
+                  Add timepoint
+                </button>
+
+                {!validated ? <div className="text-xs text-slate-500">Validate to enable Add.</div> : null}
               </div>
             </div>
-          ))}
-        </div>
-
-        <div className="mt-5 flex flex-wrap items-center gap-2">
-          <button
-            type="button"
-            onClick={handleValidate}
-            disabled={validateDisabled}
-            className={[
-              "rounded-full border px-4 py-2 text-sm",
-              validateDisabled
-                ? "border-slate-200 bg-slate-100 text-slate-400 cursor-not-allowed"
-                : "border-slate-200 bg-white hover:border-slate-300",
-            ].join(" ")}
-          >
-            {busy ? "Validating…" : validated ? "Validated ✓" : "Validate"}
-          </button>
-
-          <button
-            type="button"
-            onClick={handleAddSample}
-            disabled={!validated}
-            className={[
-              "rounded-full border px-4 py-2 text-sm font-semibold",
-              !validated
-                ? "border-slate-200 bg-slate-100 text-slate-400 cursor-not-allowed"
-                : "border-sky-300 bg-sky-50 text-sky-900 hover:border-sky-400",
-            ].join(" ")}
-          >
-            Add sample
-          </button>
-
-          <div className="text-xs text-slate-500">
-            {!allRequiredReady()
-              ? "Select draw date + upload R1/R2 to enable validation."
-              : validated
-              ? `Ready to add: ${finalLabel}`
-              : "Validate to unlock “Add sample”."}
           </div>
         </div>
       </Card>
 
-      {/* List */}
       <Card className="p-5">
-        <div className="flex items-start justify-between gap-3">
-          <div>
-            <div className="text-sm font-semibold text-slate-900">
-              Plasma timepoints
-            </div>
-            <div className="mt-1 text-xs text-slate-500">
-              Added samples are stored in LocalStorage and drive the Step 3 ✓ in
-              the tree.
-            </div>
-          </div>
+        <div className="text-sm font-semibold text-slate-900">Timepoints</div>
 
-          <button
-            type="button"
-            onClick={clearAllSamples}
-            className="rounded-full border border-slate-200 bg-white px-4 py-2 text-sm hover:border-slate-300"
-          >
-            Clear all
-          </button>
-        </div>
-
-        {(stored?.plasmaSamples?.length ?? 0) === 0 ? (
-          <div className="mt-4 text-sm text-slate-600">
-            No plasma samples yet.
-          </div>
-        ) : (
-          <div className="mt-4 space-y-3">
-            {(stored?.plasmaSamples ?? []).map((p) => (
-              <div
-                key={p.id}
-                className="rounded-2xl border border-slate-200 bg-white px-4 py-3"
-              >
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <div className="text-sm font-semibold text-slate-900 truncate">
-                      {p.label}
-                    </div>
-                    <div className="mt-1 text-xs text-slate-500">
-                      drawDate:{" "}
-                      <span className="font-medium text-slate-700">
-                        {p.drawDate}
-                      </span>
-                      {hasSurgeryDate &&
-                      surgeryDate &&
-                      p.dayOffset !== undefined ? (
-                        <span className="ml-2">
-                          • {p.dayOffset < 0 ? "pre-op" : "post-op"} • Δdays=
-                          {p.dayOffset}
-                        </span>
-                      ) : null}
-                    </div>
-                    <div className="mt-2 text-xs text-slate-600">
-                      {p.files?.r1Name ? (
-                        <div className="truncate">
-                          R1:{" "}
-                          <span className="font-medium">{p.files.r1Name}</span>{" "}
-                          <span className="text-slate-400">
-                            ({bytesToHuman(p.files.r1Size ?? 0)})
-                          </span>
-                        </div>
-                      ) : null}
-                      {p.files?.r2Name ? (
-                        <div className="truncate">
-                          R2:{" "}
-                          <span className="font-medium">{p.files.r2Name}</span>{" "}
-                          <span className="text-slate-400">
-                            ({bytesToHuman(p.files.r2Size ?? 0)})
-                          </span>
-                        </div>
-                      ) : null}
-                    </div>
+        {stored?.plasmaSamples?.length ? (
+          <div className="mt-3 grid grid-cols-12 gap-3">
+            {stored.plasmaSamples.map(s => (
+              <div key={s.id} className="col-span-12 md:col-span-4">
+                <div className="rounded-2xl border border-slate-200 bg-white p-4">
+                  <div className="text-xs text-slate-500">{s.drawDate}</div>
+                  <div className="mt-1 text-sm font-semibold text-slate-900">{s.label}</div>
+                  <div className="mt-2 text-xs text-slate-600">
+                    {(s.files?.r1Name ?? 'R1')} / {(s.files?.r2Name ?? 'R2')}
                   </div>
-
-                  <div className="shrink-0 flex flex-col items-end gap-2">
-                    <div className="text-xs">
-                      {p.fastqValidated ? (
-                        <span className="text-emerald-700 font-semibold">
-                          ✓ Validated
-                        </span>
-                      ) : (
-                        <span className="text-slate-500">Not validated</span>
-                      )}
-                    </div>
-
-                    <button
-                      type="button"
-                      onClick={() => removeSample(p.id)}
-                      className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs hover:border-slate-300"
-                    >
-                      Remove
-                    </button>
-                  </div>
+                  <div className="mt-2 text-xs text-emerald-700">✓ Added</div>
                 </div>
               </div>
             ))}
           </div>
+        ) : (
+          <div className="mt-2 text-sm text-slate-600">No plasma timepoints added yet.</div>
         )}
       </Card>
-
-      <div className="text-xs text-slate-500">
-        Note: Step 3 label is computed from plasma draw date and surgery date
-        (if present). You can override with Custom label.
-      </div>
     </div>
   );
 }
