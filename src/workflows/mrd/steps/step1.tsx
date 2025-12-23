@@ -132,12 +132,19 @@ export function Step1() {
     stored?.tumorAvailable === true ? "Yes" : stored?.tumorAvailable === false ? "No" : "Unknown";
 
   // Light/minimal UI helpers
-  const panel = "rounded-2xl border border-slate-200 bg-white p-5";
+  const panelBase = "rounded-2xl border border-slate-200 bg-white p-5";
   const label = "text-xs font-medium text-slate-500";
-  const input =
+
+  const inputEnabled =
     "mt-2 w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none placeholder:text-slate-400 focus:border-slate-300";
-  const select =
+  const inputDisabled =
+    "mt-2 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-400 outline-none placeholder:text-slate-300 cursor-not-allowed";
+
+  const selectEnabled =
     "mt-2 w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none focus:border-slate-300";
+  const selectDisabled =
+    "mt-2 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-400 outline-none cursor-not-allowed";
+
   const hint = "mt-2 text-xs text-slate-500";
 
   const actionCard = "rounded-2xl border border-slate-200 bg-white px-5 py-4 text-left hover:bg-slate-50 transition-colors";
@@ -149,14 +156,17 @@ export function Step1() {
   const btnSecondary =
     "inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:bg-slate-50 disabled:text-slate-400";
 
+  // Disabled “section” look (subtle grey)
+  const lockedPanelTone = !fieldsUnlocked ? "opacity-70" : "";
+
   return (
     <div className="space-y-5">
       <Card className="p-6">
         <div className="text-sm font-semibold text-slate-900">Create Subject / Case</div>
 
         <div className="mt-5 grid grid-cols-1 gap-4 md:grid-cols-2">
-          {/* Subject ID */}
-          <div className={panel}>
+          {/* Subject ID (always enabled) */}
+          <div className={panelBase}>
             <div className={label}>Subject ID</div>
             <input
               value={state.caseId}
@@ -169,18 +179,18 @@ export function Step1() {
                 }
               }}
               placeholder="e.g., CRC-0465"
-              className={input}
+              className={inputEnabled}
             />
             {!fieldsUnlocked ? <div className={hint}>Enter an ID to unlock the form.</div> : null}
           </div>
 
           {/* Indication */}
-          <div className={panel}>
+          <div className={[panelBase, lockedPanelTone].join(" ")}>
             <div className={label}>Indication</div>
             <select
               value={state.indication}
               onChange={(e) => setIndication(e.target.value)}
-              className={select}
+              className={fieldsUnlocked ? selectEnabled : selectDisabled}
               disabled={!fieldsUnlocked}
             >
               {INDICATION_OPTIONS.map((o) => (
@@ -192,14 +202,19 @@ export function Step1() {
           </div>
 
           {/* Surgery date */}
-          <div className={panel}>
+          <div className={[panelBase, lockedPanelTone].join(" ")}>
             <div className="flex items-start justify-between gap-3">
               <div>
                 <div className={label}>Surgery date</div>
                 <div className="mt-1 text-xs text-slate-500">Optional — used to label plasma timepoints in Step 3.</div>
               </div>
 
-              <label className="flex select-none items-center gap-2 text-xs font-medium text-slate-600">
+              <label
+                className={[
+                  "flex select-none items-center gap-2 text-xs font-medium",
+                  fieldsUnlocked ? "text-slate-600" : "text-slate-400 cursor-not-allowed",
+                ].join(" ")}
+              >
                 <input
                   type="checkbox"
                   checked={state.hasSurgeryDate}
@@ -218,7 +233,7 @@ export function Step1() {
               type="date"
               value={state.surgeryDate}
               onChange={(e) => setSurgeryDate(e.target.value)}
-              className={input}
+              className={fieldsUnlocked && state.hasSurgeryDate ? inputEnabled : inputDisabled}
               disabled={!fieldsUnlocked || !state.hasSurgeryDate}
             />
 
@@ -228,7 +243,7 @@ export function Step1() {
           </div>
 
           {/* Stored status */}
-          <div className={panel} key={storeVersion}>
+          <div className={[panelBase, lockedPanelTone].join(" ")} key={storeVersion}>
             <div className={label}>Stored status</div>
 
             <div className="mt-3 grid grid-cols-2 gap-3">
