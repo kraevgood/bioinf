@@ -19,7 +19,7 @@ function computeStatus(
   patientId: string | null,
   workflowState: { selectedPatient: { id: string } | null },
 ): StepStatus | undefined {
-  // ✅ Step1 считается пройденным, когда выбран пациент
+  // ✅ Step 1 is considered complete when a patient is selected
   if (stepId === 'step1') {
     return workflowState.selectedPatient ? 'done' : undefined;
   }
@@ -140,7 +140,7 @@ function TreeItem({
 
       {step.children?.length ? (
         <div className="relative mt-3">
-          {/* вертикальная линия слева для подшагов */}
+          {/* left vertical line for sub-steps */}
           <div className="absolute left-3.5 top-0 h-full w-px bg-slate-200" />
 
           <div className="space-y-3">

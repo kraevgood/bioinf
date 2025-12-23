@@ -15,7 +15,7 @@ type Slot = {
   error?: string;
 };
 
-const VALIDATE_TIME_MS = 3000; // имитация времени проверки (3s)
+const VALIDATE_TIME_MS = 3000; // simulated validation time (3s)
 
 function extOk(name: string) {
   const n = name.toLowerCase();
@@ -66,7 +66,7 @@ function FileUploadRow({
 }) {
   const inputRef = React.useRef<HTMLInputElement | null>(null);
 
-  // ✅ важно: если стейт сбросили (file=null), сбрасываем и DOM-input value
+  // ✅ important: when state resets (file=null), also reset the underlying DOM input value
   React.useEffect(() => {
     if (!file && inputRef.current) {
       inputRef.current.value = '';
@@ -110,7 +110,7 @@ function FileUploadRow({
                 const f = e.currentTarget.files?.[0] ?? null;
                 onPick(f);
 
-                // ✅ критично: сброс, чтобы можно было выбрать тот же файл снова
+                // ✅ critical: reset so the same file can be selected again
                 e.currentTarget.value = '';
               }}
             />
@@ -134,7 +134,7 @@ function FileUploadRow({
               disabled={disabled || !file}
               onClick={() => {
                 onClear();
-                // ✅ и тут тоже
+                // ✅ and here as well
                 if (inputRef.current) inputRef.current.value = '';
               }}
               className={[
@@ -155,10 +155,10 @@ function FileUploadRow({
 
 
 /**
- * ВАЖНО:
- * Раньше при отсутствии surgeryDate возвращалось "first plasma".
- * Из-за этого любая точка без операции выглядела одинаково.
- * Теперь: если операции нет — relation = "—" (то есть "не определено").
+ * IMPORTANT:
+ * Previously, if surgeryDate was missing, we returned "first plasma".
+ * That made every timepoint without surgery look the same.
+ * Now: if there is no surgery date — relation = "—" (undefined).
  */
 function computeRelation(drawDateISO: string, surgeryDateISO?: string) {
   if (!surgeryDateISO) return { relation: '—', dayOffset: 0 };
@@ -175,9 +175,9 @@ function computeRelation(drawDateISO: string, surgeryDateISO?: string) {
 }
 
 /**
- * Генерируем display label от даты взятия плазмы.
- * - База: "Plasma YYYY-MM-DD"
- * - Если есть операция: добавляем "(pre-op day X / day 0 / post-op day X)"
+ * Generate display label based on plasma draw date.
+ * - Base: "Plasma YYYY-MM-DD"
+ * - If surgery date exists: append "(pre-op day X / day 0 / post-op day X)"
  */
 function makeAutoLabel(drawDateISO: string, surgeryDateISO?: string) {
   const base = `Plasma ${drawDateISO}`;
@@ -192,7 +192,7 @@ export function Step3() {
   const patientId = state.selectedPatient?.id ?? null;
 
   const [drawDate, setDrawDate] = React.useState<string>(''); // yyyy-mm-dd
-  const [customLabel, setCustomLabel] = React.useState<string>(''); // оставляем как есть (может пригодиться позже)
+  const [customLabel, setCustomLabel] = React.useState<string>(''); // keep for later (optional override)
 
   const [slots, setSlots] = React.useState<Slot[]>([
     { key: 'pR1', title: 'Plasma FASTQ — R1', file: null },
@@ -299,7 +299,7 @@ export function Step3() {
         ? `plasma_${crypto.randomUUID()}`
         : `plasma_${drawDate}_${r1.name}_${r2.name}`;
 
-    // ключевое изменение: label теперь зависит от даты взятия плазмы
+    // key change: label is derived from draw date
     const autoLabel = makeAutoLabel(drawDate, surgeryDateISO);
     const finalLabel = customLabel?.trim() || autoLabel;
 
@@ -334,7 +334,7 @@ export function Step3() {
     return (
       <div className="space-y-2">
         <div className="text-lg font-semibold">Step 3 — Add plasma sample</div>
-        <div className="text-sm text-slate-600">Сначала выбери пациента на Step 1.</div>
+        <div className="text-sm text-slate-600">Select a patient in Step 1 first.</div>
       </div>
     );
   }
@@ -348,14 +348,14 @@ export function Step3() {
   const canValidate = !validating;
   const canAdd = validated && !validating;
 
-  // что показывать как "Label" в превью
+  // what to show as the preview "Label"
   const previewLabel = drawDate ? (customLabel?.trim() || makeAutoLabel(drawDate, stored?.surgeryDate)) : '—';
 
   return (
     <div className="space-y-5">
       <div className="text-lg font-semibold">Step 3 — Add plasma sample</div>
 
-      {/* ключевое изменение: показываем дату операции рядом с пациентом */}
+      {/* key change: show surgery date next to the patient */}
       <div className="text-sm text-slate-600">
         Patient: <span className="font-medium text-slate-900">{patientLabel}</span>{' '}
         <span className="text-slate-400">({patientId})</span>
@@ -385,8 +385,8 @@ export function Step3() {
             <div className="mt-2 text-xs text-slate-500">
               Label: <span className="font-medium text-slate-800">{previewLabel}</span>
             </div>
-            {/* customLabel остаётся в стейте (может пригодиться позже), но сейчас UI для ввода не добавляю,
-                чтобы не ломать/не расширять твой текущий UX без запроса */}
+            {/* customLabel stays in state (may be useful later), but we do not add an input UI yet
+                to avoid changing the current UX without an explicit request */}
           </div>
 
           <div className="col-span-12 md:col-span-6">

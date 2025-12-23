@@ -18,13 +18,13 @@ function InfoRow({ label, value }: { label: string; value: React.ReactNode }) {
 export function Step4() {
   const { state, activeStepId, setActiveStepId } = useWorkflow();
 
-  // ✅ здесь гарантируем, что дальше patientId всегда string
+  // ✅ ensure patientId is always a string from here on
   const selected = state.selectedPatient;
   if (!selected?.id) {
     return (
       <div className="space-y-2">
         <div className="text-lg font-semibold">Step 4 — Review &amp; Run (configurable)</div>
-        <div className="text-sm text-slate-600">Сначала выбери пациента на Step 1.</div>
+        <div className="text-sm text-slate-600">Select a patient in Step 1 first.</div>
       </div>
     );
   }
@@ -105,7 +105,7 @@ export function Step4() {
         <div>
           <div className="text-lg font-semibold">Step 4 — Review &amp; Run (configurable)</div>
           <div className="mt-1 text-sm text-slate-600">
-            Сводка конфигурации и запуск анализа. Два канала (SNV и CNV), каждый со своим AI-denoise.
+            Configuration summary and run. Two channels (SNV and CNV), each with its own AI denoise.
           </div>
         </div>
 
@@ -119,7 +119,7 @@ export function Step4() {
           <div>
             <div className="text-sm font-semibold text-slate-900">Review</div>
             <div className="mt-1 text-xs text-slate-500">
-              Перед запуском: нужен imprint (или skip) и хотя бы один plasma timepoint.
+              Before running: you need an imprint (or skip) and at least one plasma timepoint.
             </div>
           </div>
 
@@ -177,11 +177,11 @@ export function Step4() {
 
               {!imprintReady ? (
                 <div className="mt-3 text-xs text-red-600">
-                  Требование: сначала завершить Step 2 (imprint created или tumor unavailable).
+                  Requirement: complete Step 2 first (imprint created or tumor unavailable).
                 </div>
               ) : null}
 
-              {!hasPlasma ? <div className="mt-2 text-xs text-red-600">Требование: добавить плазму на Step 3.</div> : null}
+              {!hasPlasma ? <div className="mt-2 text-xs text-red-600">Requirement: add plasma in Step 3.</div> : null}
 
               {runCompleted ? <div className="mt-3 text-xs text-emerald-700">✓ Analysis completed</div> : null}
             </div>
@@ -251,7 +251,7 @@ export function Step4() {
             </div>
 
             <div className="mt-4 text-xs text-slate-500">
-              Demo: Run → auto SNV → auto CNV → return. Авто-переход на Step 5 выключен.
+              Demo: Run → auto SNV → auto CNV → return. Auto-jump to Step 5 is disabled.
               <span className="ml-2">(active: {activeStepId})</span>
             </div>
           </div>

@@ -33,16 +33,16 @@ export default function AnalysisPage() {
           </div>
         </header>
 
-        {/* Верхние 3 блока */}
+        {/* Top 3 blocks */}
         <ModuleCardsRow modules={MODULES} active={active} onSelect={setActive} />
 
-        {/* Контент ниже */}
+        {/* Content below */}
         {active === 'MRD' ? (
           <WorkflowShell config={mrdWorkflowConfig} />
         ) : (
           <WorkspacePlaceholder
             title="Workflow"
-            text="Пока пусто. В процессе разработки"
+            text="Empty for now. Work in progress."
           />
         )}
       </div>

@@ -29,7 +29,7 @@ function ShellInner({ config }: { config: WorkflowConfig }) {
           <div className="flex items-start justify-between gap-3">
             <div>
               <div className="text-sm font-semibold text-slate-900">Workflow tree</div>
-              <div className="mt-1 text-xs text-slate-500">Клик по узлу → детали справа</div>
+              <div className="mt-1 text-xs text-slate-500">Click a node → details on the right</div>
             </div>
           </div>
 

@@ -15,8 +15,8 @@ type Slot = {
   error?: string;
 };
 
-const VALIDATE_TIME_MS = 3000; // имитация времени валидации (3s)
-const PROCESS_TIME_MS = 4000; // время демо-сканирования сабстепа
+const VALIDATE_TIME_MS = 3000; // simulated validation time (3s)
+const PROCESS_TIME_MS = 4000; // demo scan time per sub-step
 
 function extOk(name: string) {
   const n = name.toLowerCase();
@@ -220,7 +220,7 @@ export function Step2() {
     );
     setGlobalError(null);
 
-    // поменяли файлы → сбросили валидацию
+    // files changed → reset validation
     if (patientId) upsertPatient({ imprintValidated: false });
   }
 
@@ -392,7 +392,7 @@ export function Step2() {
         });
 
         setTimeout(() => setActiveStepId('step2'), 1200);
-        // ВАЖНО: не прыгаем автоматически на Step3
+        // IMPORTANT: do not auto-jump to Step 3
       }
     }, PROCESS_TIME_MS);
 
@@ -404,7 +404,7 @@ export function Step2() {
     return (
       <div className="space-y-2">
         <div className="text-lg font-semibold">Step 2 — Create imprint</div>
-        <div className="text-sm text-slate-600">Сначала выбери пациента на Step 1.</div>
+        <div className="text-sm text-slate-600">Select a patient in Step 1 first.</div>
       </div>
     );
   }
@@ -432,7 +432,7 @@ export function Step2() {
         </div>
 
         <ScanCard title={title} subtitle={subtitle} running={st === 'running'} done={st === 'done'} />
-        <div className="text-xs text-slate-500">Демо: сканирование → галочка → следующий сабстеп.</div>
+        <div className="text-xs text-slate-500">Demo: scan → ✓ → next sub-step.</div>
       </div>
     );
   }
@@ -460,7 +460,7 @@ export function Step2() {
           <div>
             <div className="text-sm font-semibold text-slate-900">Upload files</div>
             <div className="mt-1 text-xs text-slate-500">
-              Normal R1/R2 + Tumor R1/R2 → Validate → Next (запуск LOH→CNV→SNV).
+              Normal R1/R2 + Tumor R1/R2 → Validate → Next (start LOH→CNV→SNV).
             </div>
           </div>
 
@@ -490,7 +490,7 @@ export function Step2() {
           <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
             Tumor files not available → Step 2 can be skipped.
             <div className="mt-2 text-xs text-slate-600">
-              В Step 3 будет подключен <span className="font-semibold">ImprintAI+</span> (учёт нозологии:{' '}
+              In Step 3 we will enable <span className="font-semibold">ImprintAI+</span> (indication-aware:{' '}
               <span className="font-semibold">{state.indication || '—'}</span>).
             </div>
           </div>

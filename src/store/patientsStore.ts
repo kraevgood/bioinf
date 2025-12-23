@@ -36,17 +36,17 @@ export type StoredPatient = Patient & {
   plasmaSamples?: PlasmaSample[];
 
   // Step2
-  tumorAvailable?: boolean; // чекбокс tumor available
-  imprintSkipped?: boolean; // если tumor unavailable
-  imprintSkipReason?: "no_tumor"; // причина skip
+  tumorAvailable?: boolean; // tumor available checkbox
+  imprintSkipped?: boolean; // when tumor is unavailable
+  imprintSkipReason?: "no_tumor"; // skip reason
 
   // Validate / Next gating (Step2)
-  imprintValidated?: boolean; // нажали Validate и успешно прошло
+  imprintValidated?: boolean; // Validate clicked and succeeded
   imprintValidationAt?: string; // ISO timestamp
-  imprintRunStarted?: boolean; // нажали Next и стартанули LOH→CNV→SNV
+  imprintRunStarted?: boolean; // Next clicked and LOH→CNV→SNV started
 
   // Step2 state
-  imprintInputsReady?: boolean; // файлы загружены+валидированы (демо-логика)
+  imprintInputsReady?: boolean; // files uploaded + validated (demo logic)
   imprintModules?: Record<ImprintModuleKey, ImprintModuleState>;
   imprintCreated?: boolean;
   imprintCreatedAt?: string; // ISO

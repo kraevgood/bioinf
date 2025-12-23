@@ -248,8 +248,8 @@ export function PatientsModal({
               Patients
             </div>
             <div className="mt-1 text-xs text-slate-500">
-              Слева — список. Справа — данные выбранного пациента
-              (редактирование).
+              Left: list. Right: selected patient details
+              (editing).
             </div>
           </div>
 
@@ -413,8 +413,8 @@ export function PatientsModal({
               </div>
               <div className="mt-1 text-xs text-slate-500">
                 {isDraft
-                  ? "Создание нового пациента (draft). Сохраните, чтобы записать в localStorage."
-                  : "Редактирование выбранного пациента."}
+                  ? "Creating a new patient (draft). Save to persist to localStorage."
+                  : "Editing the selected patient."}
               </div>
 
               <div className="mt-4 space-y-4">
@@ -424,7 +424,7 @@ export function PatientsModal({
                     value={formId}
                     onChange={(e) => setFormId(e.target.value)}
                     placeholder="e.g., CASE-100"
-                    disabled={!isDraft} // id нельзя менять у существующего (иначе создадим нового)
+                    disabled={!isDraft} // existing patient's ID is immutable (changing it would create a new record)
                     className={[
                       "mt-1 w-full rounded-xl border bg-white px-4 py-3 text-sm outline-none focus:border-slate-300",
                       isDraft
@@ -434,7 +434,7 @@ export function PatientsModal({
                   />
                   {!isDraft ? (
                     <div className="mt-1 text-xs text-slate-500">
-                      ID фиксируем, чтобы не плодить дубликаты.
+                      Keep ID fixed to avoid duplicates.
                     </div>
                   ) : null}
                 </div>
@@ -453,7 +453,7 @@ export function PatientsModal({
 
                 <div>
                   <label className="text-xs text-slate-500">
-                    Indication (нозология)
+                    Indication
                   </label>
                   <select
                     value={formIndication}
@@ -498,7 +498,7 @@ export function PatientsModal({
                       className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-slate-300"
                     />
                     <div className="mt-1 text-xs text-slate-500">
-                      Используется для маркировки “pre-op / post-op day N” в
+                      Used to label “pre-op / post-op day N” in
                       Step 3.
                     </div>
                   </div>
@@ -521,8 +521,8 @@ export function PatientsModal({
                 </button>
 
                 <div className="text-xs text-slate-500">
-                  Choose for workflow закрывает окно и применяет выбранного
-                  пациента в Step 1.
+                  “Choose for workflow” closes the modal and applies the selected
+                  patient in Step 1.
                 </div>
               </div>
             </div>

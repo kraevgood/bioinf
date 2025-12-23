@@ -26,7 +26,7 @@ export function Step1() {
     return PatientsStore.list().find((x) => x.id.trim().toLowerCase() === key);
   }
 
-  // Включить/выключить surgery flag до нужного значения (через toggle)
+  // Set surgery-date flag deterministically (no toggle-flip)
   function ensureHasSurgeryDate(desired: boolean) {
     toggleSurgeryDate(desired);
   }
@@ -34,10 +34,10 @@ export function Step1() {
   function onSelectPatient(p: { id: string; label: string }) {
     setSelectedPatient(p);
 
-    // caseId по умолчанию = выбранный CASE (можно менять вручную где-то позже, если понадобится)
+    // By default, caseId = selected CASE ID (can be editable later if needed)
     if (!state.caseId) setCaseId(p.id);
 
-    // подтягиваем из хранилища мету шага 1 -> в workflow state (важно для Step3)
+    // Load Step 1 metadata from storage into workflow state (needed for Step 3)
     const stored = findStoredById(p.id);
 
     if (stored?.indication !== undefined) {
@@ -49,19 +49,19 @@ export function Step1() {
     }
 
     if (stored?.surgeryDate) {
-      // если дата есть — флаг обязан быть true
+      // If surgery date exists, the flag must be true
       ensureHasSurgeryDate(true);
       setSurgeryDate(stored.surgeryDate);
     } else {
-      // если даты нет — на всякий случай синхронизируем surgeryDate в workflow
+      // If there is no date, keep workflow surgeryDate in sync
       setSurgeryDate("");
     }
 
-    // обновим summary
+    // refresh summary
     setStoreVersion((v) => v + 1);
   }
 
-  // Если в workflow state меняются поля шага1 — сохраняем в пациента (совместимо с тем, что правки делаются в модалке)
+  // Persist Step 1 fields into the patient record when workflow state changes (compatible with edits in the modal)
   React.useEffect(() => {
     if (!state.selectedPatient) return;
 
@@ -97,15 +97,14 @@ export function Step1() {
   return (
     <div className="space-y-5">
       <div className="text-sm text-slate-600">
-        Создаём кейс или выбираем пациента. Нозология и дата операции
-        сохраняются на пациента локально и подтягиваются при выборе.
+        Create a case or select a patient. Indication and surgery date are stored locally per patient and auto-loaded on selection.
       </div>
 
       <PatientsModal
         open={patientsOpen}
         onClose={() => {
           setPatientsOpen(false);
-          // после закрытия модалки — перерисуем summary (если там меняли детали)
+          // After closing the modal, re-render summary (in case details were edited there)
           setStoreVersion((v) => v + 1);
         }}
         selectedPatientId={state.selectedPatient?.id ?? null}
@@ -127,7 +126,7 @@ export function Step1() {
           </button>
         </div>
 
-        {/* две колонки одинакового размера */}
+        {/* two equal columns */}
         <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
           <div>
             <div className="mb-1 text-xs text-slate-500">Patient</div>
@@ -156,7 +155,7 @@ export function Step1() {
           <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-3">
             <div>
               <div className="text-xs text-slate-500">
-                Indication (нозология)
+                Indication
               </div>
               <div className="mt-1 text-sm font-medium text-slate-900">
                 {indicationText}
@@ -169,7 +168,7 @@ export function Step1() {
                 {surgeryText}
               </div>
               <div className="mt-1 text-xs text-slate-500">
-                Используется для маркировки плазменных таймпоинтов (Step 3).
+                Used to label plasma timepoints (Step 3).
               </div>
             </div>
 

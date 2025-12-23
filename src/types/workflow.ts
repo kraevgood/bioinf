@@ -8,16 +8,16 @@ export type WorkflowStep = {
   subtitle?: string;
   kind?: "step" | "substep";
 
-  // бейдж справа в дереве (например: Patient, Plasma, Config)
+  // right-side badge in the tree (e.g., Patient, Plasma, Config)
   badgeText?: string;
 
-  // статус (потом пригодится для подсветки)
+  // status (used later for highlighting)
   status?: StepStatus;
 
-  // подшаги (как LOH/CNV/SNV внутри Step 2 в MDR)
+  // sub-steps (e.g., LOH/CNV/SNV inside MRD Step 2)
   children?: WorkflowStep[];
 
-  // что рисуем справа
+  // what to render on the right
   render: () => ReactNode;
 };
 

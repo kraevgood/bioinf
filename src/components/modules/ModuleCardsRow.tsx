@@ -76,7 +76,7 @@ export function ModuleCardsRow({
 
               {isDisabled ? (
                 <div className="mt-4 text-xs text-slate-500">
-                  Workflow появится позже
+                  Workflow coming soon
                 </div>
               ) : (
                 <div className="mt-4 flex flex-wrap gap-2">

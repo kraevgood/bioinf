@@ -23,7 +23,7 @@ function ProgressBar({ running }: { running: boolean }) {
 export function Step4Snv() {
   const { state, activeStepId, setActiveStepId } = useWorkflow();
 
-  // ⚠️ хуки должны быть всегда, поэтому делаем значения, которые могут быть пустыми
+  // ⚠️ hooks must always run, so we compute values that may be empty
   const patientId = state.selectedPatient?.id ?? '';
   const patientLabel = (state.selectedPatient?.label || patientId).trim();
 
@@ -60,7 +60,7 @@ export function Step4Snv() {
 
     const st = p.analysisChannels?.SNV ?? 'idle';
 
-    // если уже done — пролистываем к CNV
+    // if already done — jump to CNV
     if (st === 'done') {
       const t = setTimeout(() => setActiveStepId('step4_cnv'), 800);
       return () => clearTimeout(t);
@@ -90,12 +90,12 @@ export function Step4Snv() {
     return () => clearTimeout(timer);
   }, [patientId, isHere, setActiveStepId, upsertPatient]);
 
-  // ✅ теперь можно условно рендерить, потому что все хуки уже вызваны
+  // ✅ conditional rendering is safe now because all hooks already ran
   if (!patientId) {
     return (
       <div className="space-y-2">
         <div className="text-lg font-semibold">Step 4 — SNV channel</div>
-        <div className="text-sm text-slate-600">Сначала выбери пациента на Step 1.</div>
+        <div className="text-sm text-slate-600">Select a patient in Step 1 first.</div>
       </div>
     );
   }
@@ -117,7 +117,7 @@ export function Step4Snv() {
         <div className="flex items-start justify-between gap-3">
           <div>
             <div className="text-sm font-semibold text-slate-900">AI-denoise + SNV calling</div>
-            <div className="mt-1 text-xs text-slate-500">Демо: прогресс → ✓ → переход к CNV.</div>
+            <div className="mt-1 text-xs text-slate-500">Demo: progress → ✓ → jump to CNV.</div>
           </div>
           <div className="text-xs text-slate-600">
             {st === 'done' ? <span className="font-semibold text-emerald-700">✓ Done</span> : st === 'running' ? 'Running…' : 'Idle'}

@@ -42,25 +42,25 @@ function buildSeries(patientId: string, stored: any): Point[] {
 
   const sorted = [...samples].sort((a, b) => parseDate(a.drawDate) - parseDate(b.drawDate));
 
-  // если step4 уже «заканчивали» — делаем тренд вниз (демо-логика)
+  // if Step 4 was already completed — make a downward trend (demo logic)
   const analysisCompleted = !!stored?.analysisCompleted;
   const imprint = !!stored?.imprintCreated;
 
   let prev = 0;
   return sorted.map((s, i) => {
-    // если позже появится реальное поле из бэкенда
+    // later: replace with real value from backend
     const explicit = (s as any).tumorFractionPct;
     let tf = typeof explicit === 'number' ? explicit : NaN;
 
     if (!Number.isFinite(tf)) {
-      // демо: маленькие проценты, детерминированно
+      // demo: small deterministic percentages
       const u = hashToUnit(`${patientId}:${s.id}:${s.drawDate}`);
       const base = imprint ? 0.03 : 0.06; // percent
       const noise = (u - 0.5) * (analysisCompleted ? 0.01 : 0.03);
       const trend = analysisCompleted ? -0.01 * i : -0.003 * i;
       tf = clamp(base + noise + trend, 0.001, 0.12);
 
-      // сглаживание
+      // smoothing
       if (i > 0) tf = clamp(prev * 0.65 + tf * 0.35, 0.001, 0.12);
     }
 
@@ -78,7 +78,7 @@ function TimelinePlot({ points }: { points: Point[] }) {
   if (!points.length) {
     return (
       <div className="rounded-2xl border border-slate-200 bg-slate-50 p-6 text-sm text-slate-600">
-        Пока нет плазменных сэмплов (Step 3). Добавь хотя бы один образец — и здесь появится график.
+        No plasma samples yet (Step 3). Add at least one sample to see the chart here.
       </div>
     );
   }
@@ -183,7 +183,7 @@ function StatusModal({ open, onClose }: { open: boolean; onClose: () => void }) 
           <div>
             <div className="text-base font-semibold text-slate-900">Status page (demo)</div>
             <div className="mt-1 text-xs text-slate-500">
-              Список всех пациентов и всех инстансов плазмы (как в PDF-таблице).
+              List of all patients and all plasma instances (like in the PDF table).
             </div>
           </div>
 
@@ -244,7 +244,7 @@ function StatusModal({ open, onClose }: { open: boolean; onClose: () => void }) 
           </div>
 
           <div className="mt-3 text-xs text-slate-500">
-            Примечание: сейчас TF — демо-значения. Позже заменим на реальные результаты из анализа.
+            Note: TF values are demo placeholders for now. We will replace them with real analysis results.
           </div>
         </div>
       </div>
@@ -265,7 +265,7 @@ export function Step5() {
     return (
       <div className="space-y-2">
         <div className="text-lg font-semibold">Step 5 — Results</div>
-        <div className="text-sm text-slate-600">Сначала выбери пациента на Step 1.</div>
+        <div className="text-sm text-slate-600">Select a patient in Step 1 first.</div>
       </div>
     );
   }
@@ -281,9 +281,9 @@ export function Step5() {
 
   const interpretation = Number.isFinite(last)
     ? below
-      ? 'Вероятный ответ на терапию / низкий риск рецидива (демо-логика)'
-      : 'Нет ответа / высокий риск рецидива (демо-логика)'
-    : 'Добавь плазменный сэмпл (Step 3), чтобы рассчитать MRD.';
+      ? 'Likely response to therapy / low recurrence risk (demo logic)'
+      : 'No response / high recurrence risk (demo logic)'
+    : 'Add a plasma sample (Step 3) to compute MRD.';
 
   const imprintMode = stored?.imprintCreated ? 'tumor-informed' : 'indication-guided (ImprintAI+)';
 
@@ -376,7 +376,7 @@ export function Step5() {
       </div>
 
       <div className="text-xs text-slate-500">
-        Для демо: график и TF сейчас считаются детерминированно на фронте. Позже заменим на реальные результаты из анализа.
+        Demo: the chart and TF are computed deterministically on the frontend for now. We will replace them with real analysis results.
       </div>
 
       <StatusModal open={open} onClose={() => setOpen(false)} />
