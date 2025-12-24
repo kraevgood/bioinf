@@ -1,16 +1,17 @@
-'use client';
+"use client";
 
-import { useState } from 'react';
-import { MODULES } from '@/data/modules';
-import type { ModuleKey } from '@/types/modules';
-import { ModuleCardsRow } from '@/components/modules/ModuleCardsRow';
-import { WorkspacePlaceholder } from '@/components/modules/WorkspacePlaceholder';
-import { Pill } from '@/components/ui/Pill';
-import { WorkflowShell } from '@/components/workflow/WorkflowShell';
-import { mrdWorkflowConfig } from '@/workflows/mrd/config';
+import { useState } from "react";
+import { MODULES } from "@/data/modules";
+import type { ModuleKey } from "@/types/modules";
+import { ModuleCardsRow } from "@/components/modules/ModuleCardsRow";
+import { WorkspacePlaceholder } from "@/components/modules/WorkspacePlaceholder";
+import { Pill } from "@/components/ui/Pill";
+import { WorkflowShell } from "@/components/workflow/WorkflowShell";
+import { mrdWorkflowConfig } from "@/workflows/mrd/config";
+import { WorkflowOverviewContainer } from "@/components/workflow/WorkflowOverviewContainer";
 
 export default function AnalysisPage() {
-  const [active, setActive] = useState<ModuleKey>('MRD');
+  const [active, setActive] = useState<ModuleKey>("MRD");
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900">
@@ -21,23 +22,40 @@ export default function AnalysisPage() {
             <div>
               <div className="text-xl font-semibold">Imprinta — MRD Module</div>
               <div className="text-sm text-slate-500">
-                ImprintAI™ engine • SNV / CNV / BAF / Fragmentomics signal enhancement + longitudinal MRD scoring
+                ImprintAI™ engine • SNV / CNV / BAF / Fragmentomics signal
+                enhancement + longitudinal MRD scoring
               </div>
             </div>
           </div>
 
           <div className="flex items-center gap-2">
-            <Pill><span className="h-2 w-2 rounded-full bg-blue-500" /> Tumor-informed</Pill>
-            <Pill><span className="h-2 w-2 rounded-full bg-emerald-500" /> Non-informed</Pill>
-            <Pill><span className="h-2 w-2 rounded-full bg-amber-500" /> Configurable Step 4</Pill>
+            <Pill>
+              <span className="h-2 w-2 rounded-full bg-blue-500" />{" "}
+              Tumor-informed
+            </Pill>
+            <Pill>
+              <span className="h-2 w-2 rounded-full bg-emerald-500" />{" "}
+              Non-informed
+            </Pill>
+            <Pill>
+              <span className="h-2 w-2 rounded-full bg-amber-500" />{" "}
+              Configurable Step 4
+            </Pill>
           </div>
         </header>
 
         {/* Top 3 blocks */}
-        <ModuleCardsRow modules={MODULES} active={active} onSelect={setActive} />
+        <ModuleCardsRow
+          modules={MODULES}
+          active={active}
+          onSelect={setActive}
+        />
+
+        {/* Overview container (changes with workflow selection) */}
+        <WorkflowOverviewContainer active={active} />
 
         {/* Content below */}
-        {active === 'MRD' ? (
+        {active === "MRD" ? (
           <WorkflowShell config={mrdWorkflowConfig} />
         ) : (
           <WorkspacePlaceholder
