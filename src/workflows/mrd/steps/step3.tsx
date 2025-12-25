@@ -74,7 +74,6 @@ function FieldBlock({
   description: string;
   children: React.ReactNode;
 }) {
-  // ✅ fixed height so both columns start inputs at the same Y
   return (
     <div className="space-y-2">
       <div className="h-14">
@@ -86,12 +85,13 @@ function FieldBlock({
   );
 }
 
-
 function FileSlot({
   title,
   file,
   error,
   validating,
+  inputKey,
+  isValidated,
   onPick,
   onClear,
 }: {
@@ -99,17 +99,33 @@ function FileSlot({
   file: File | null;
   error?: string;
   validating: boolean;
+  inputKey: string;
+  isValidated: boolean;
   onPick: (f: File | null) => void;
   onClear: () => void;
 }) {
   const inputRef = React.useRef<HTMLInputElement | null>(null);
 
-  const border = error ? 'border-red-200' : file ? 'border-slate-300' : 'border-slate-200';
-  const bg = error ? 'bg-red-50' : 'bg-white';
+  const border = error
+    ? 'border-red-200'
+    : isValidated
+      ? 'border-emerald-300'
+      : file
+        ? 'border-slate-300'
+        : 'border-slate-200';
+
+  const bg = error ? 'bg-red-50' : isValidated ? 'bg-emerald-50/40' : 'bg-white';
 
   return (
     <div className="space-y-1">
-      <div className="text-xs text-slate-500">{title}</div>
+      <div className="flex items-center justify-between gap-2">
+        <div className="text-xs text-slate-500">{title}</div>
+        {isValidated ? (
+          <div className="rounded-full border border-emerald-300 bg-white px-2 py-0.5 text-[11px] font-semibold text-emerald-700">
+            Validated
+          </div>
+        ) : null}
+      </div>
 
       <div className={['rounded-2xl border px-4 py-3', border, bg].join(' ')}>
         <div className="flex items-start justify-between gap-3">
@@ -121,6 +137,7 @@ function FileSlot({
 
           <div className="flex shrink-0 items-center gap-2">
             <input
+              key={inputKey}
               ref={inputRef}
               type="file"
               className="hidden"
@@ -155,12 +172,6 @@ function FileSlot({
   );
 }
 
-/**
- * Step 3 — Add plasma sample
- * Fixes:
- * - Align top fields symmetrically (same header height)
- * - Show surgery date near patient (important for choosing timepoints)
- */
 export function Step3() {
   const { state } = useWorkflow();
 
@@ -179,10 +190,19 @@ export function Step3() {
   const [validated, setValidated] = React.useState(false);
   const [globalError, setGlobalError] = React.useState<string | null>(null);
 
+  const [resetNonce, setResetNonce] = React.useState(0);
+
+  // форсим перерисовку после изменений localStorage
+  const [storeTick, setStoreTick] = React.useState(0);
+
   const stored = patientId ? PatientsStore.findById(patientId) : null;
   const surgeryDate = stored?.surgeryDate;
 
   const samples: PlasmaSample[] = getSamplesFromStored(stored);
+
+  function touchStore() {
+    setStoreTick(t => t + 1);
+  }
 
   function upsertSamples(nextSamples: PlasmaSample[]) {
     if (!patientId) return;
@@ -191,10 +211,20 @@ export function Step3() {
       label: state.selectedPatient?.label || patientId,
       plasmaSamples: nextSamples,
     });
+    touchStore();
+  }
+
+  function resetUploadState() {
+    setSlots(prev => prev.map(s => ({ ...s, file: null, error: undefined })));
+    setValidated(false);
+    setValidating(false);
+    setResetNonce(n => n + 1);
   }
 
   function setSlotFile(key: FileSlotKey, file: File | null) {
     setSlots(prev => prev.map(s => (s.key === key ? { ...s, file, error: undefined } : s)));
+    setValidated(false); // сменили файл => нужна новая валидация
+    setGlobalError(null);
   }
 
   function validateFilesLocal(): boolean {
@@ -236,7 +266,6 @@ export function Step3() {
 
   function handleAddTimepoint() {
     if (!patientId) return;
-
     setGlobalError(null);
 
     if (!validated) {
@@ -285,8 +314,7 @@ export function Step3() {
 
     setDrawDate('');
     setCustomLabel('');
-    setSlots(prev => prev.map(s => ({ ...s, file: null, error: undefined })));
-    setValidated(false);
+    resetUploadState();
   }
 
   function handleDeleteTimepoint(id: string) {
@@ -311,9 +339,7 @@ export function Step3() {
     const toAdd: PlasmaSample[] = [];
     for (const c of candidates) {
       if (existingDates.has(c.date)) continue;
-
       const computed = computeRelationToSurgery(c.date, surgeryDate);
-
       toAdd.push({
         id: uid('demo'),
         drawDate: c.date,
@@ -340,9 +366,8 @@ export function Step3() {
 
     setDrawDate('');
     setCustomLabel('');
-    setSlots(prev => prev.map(s => ({ ...s, file: null, error: undefined })));
-    setValidated(false);
     setGlobalError(null);
+    resetUploadState();
   }
 
   if (!patientId) {
@@ -354,6 +379,10 @@ export function Step3() {
     );
   }
 
+  const r1File = slots.find(s => s.key === 'pR1')?.file ?? null;
+  const r2File = slots.find(s => s.key === 'pR2')?.file ?? null;
+  const allFilesPicked = !!r1File && !!r2File;
+
   return (
     <div className="space-y-5">
       <div className="text-lg font-semibold">Step 3 — Add plasma sample</div>
@@ -363,8 +392,6 @@ export function Step3() {
           Patient: <span className="font-medium text-slate-900">{patientLabel}</span>{' '}
           <span className="text-slate-400">({patientId})</span>
         </div>
-
-        {/* ✅ Surgery date shown here */}
         <div className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs text-slate-600">
           Surgery date: <span className="font-semibold text-slate-900">{surgeryDate || '—'}</span>
         </div>
@@ -377,12 +404,8 @@ export function Step3() {
           </div>
         ) : null}
 
-        {/* ✅ Symmetric grid for top fields */}
         <div className="grid gap-6 md:grid-cols-2">
-          <FieldBlock
-            title="Draw date"
-            description="Used to label pre/post-op (if surgery date exists)."
-          >
+          <FieldBlock title="Draw date" description="Used to label pre/post-op (if surgery date exists).">
             <input
               value={drawDate}
               onChange={e => setDrawDate(e.target.value)}
@@ -391,10 +414,7 @@ export function Step3() {
             />
           </FieldBlock>
 
-          <FieldBlock
-            title="Custom label (optional)"
-            description="If empty, label is generated from surgery date."
-          >
+          <FieldBlock title="Custom label (optional)" description="If empty, label is generated from surgery date.">
             <input
               value={customLabel}
               onChange={e => setCustomLabel(e.target.value)}
@@ -408,17 +428,21 @@ export function Step3() {
         <div className="mt-6 grid gap-4 md:grid-cols-2">
           <FileSlot
             title={slots.find(s => s.key === 'pR1')?.title ?? 'Plasma R1'}
-            file={slots.find(s => s.key === 'pR1')?.file ?? null}
+            file={r1File}
             error={slots.find(s => s.key === 'pR1')?.error}
             validating={validating}
+            inputKey={`pR1_${resetNonce}`}
+            isValidated={validated && allFilesPicked}
             onPick={f => setSlotFile('pR1', f)}
             onClear={() => setSlotFile('pR1', null)}
           />
           <FileSlot
             title={slots.find(s => s.key === 'pR2')?.title ?? 'Plasma R2'}
-            file={slots.find(s => s.key === 'pR2')?.file ?? null}
+            file={r2File}
             error={slots.find(s => s.key === 'pR2')?.error}
             validating={validating}
+            inputKey={`pR2_${resetNonce}`}
+            isValidated={validated && allFilesPicked}
             onPick={f => setSlotFile('pR2', f)}
             onClear={() => setSlotFile('pR2', null)}
           />
@@ -447,7 +471,6 @@ export function Step3() {
             type="button"
             onClick={handleAdd3DemoTimepoints}
             className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
-            title="Adds demo timepoints (skips duplicate dates)"
           >
             Add 3 timepoints (demo)
           </button>
@@ -486,22 +509,17 @@ export function Step3() {
                           </>
                         ) : null}
                       </div>
+                      <div className="mt-1 text-xs text-emerald-700 font-semibold">✓ Validated</div>
                     </div>
 
-                    <div className="flex items-center gap-3">
-                      <div className="text-xs text-slate-500">
-                        {s.fastqValidated ? <span className="font-semibold text-emerald-700">✓ Validated</span> : '—'}
-                      </div>
-
-                      <button
-                        type="button"
-                        onClick={() => handleDeleteTimepoint(s.id)}
-                        className="rounded-xl border border-red-200 bg-white px-3 py-2 text-xs font-semibold text-red-600 hover:bg-red-50"
-                        title="Delete this timepoint"
-                      >
-                        Delete
-                      </button>
-                    </div>
+                    <button
+                      type="button"
+                      onClick={() => handleDeleteTimepoint(s.id)}
+                      className="rounded-xl border border-red-200 bg-white px-3 py-2 text-xs font-semibold text-red-600 hover:bg-red-50"
+                      title="Delete this timepoint"
+                    >
+                      Delete
+                    </button>
                   </div>
                 </div>
               ))}
@@ -510,6 +528,8 @@ export function Step3() {
           <div className="mt-4 text-sm text-slate-500">No plasma samples added yet.</div>
         )}
       </Card>
+
+      <span className="hidden">{storeTick}</span>
     </div>
   );
 }
