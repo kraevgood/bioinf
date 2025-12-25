@@ -8,7 +8,7 @@ import { Pill } from '@/components/ui/Pill';
 import { useWorkflow } from '@/components/workflow/WorkflowContext';
 import { PatientsStore } from '@/store/patientsStore';
 
-type Point = { x: number; y: number; label: string; date: string };
+type Point = { x: number; y: number; label: string; date: string; t: number };
 
 function clamp(n: number, a: number, b: number) {
   return Math.max(a, Math.min(b, n));
@@ -33,93 +33,278 @@ function fmtPct(n: number) {
 
 function parseDate(d: string): number {
   const t = Date.parse(d);
-  return Number.isFinite(t) ? t : 0;
+  return Number.isFinite(t) ? t : NaN;
 }
 
 function buildSeries(patientId: string, stored: any): Point[] {
   const samples: any[] = Array.isArray(stored?.plasmaSamples) ? stored.plasmaSamples : [];
   if (!samples.length) return [];
 
-  const sorted = [...samples].sort((a, b) => parseDate(a.drawDate) - parseDate(b.drawDate));
+  const sorted = [...samples].sort((a, b) => (parseDate(a.drawDate) || 0) - (parseDate(b.drawDate) || 0));
 
-  // if Step 4 was already completed — make a downward trend (demo logic)
+  // demo trend logic
   const analysisCompleted = !!stored?.analysisCompleted;
   const imprint = !!stored?.imprintCreated;
 
   let prev = 0;
+
   return sorted.map((s, i) => {
-    // later: replace with real value from backend
     const explicit = (s as any).tumorFractionPct;
     let tf = typeof explicit === 'number' ? explicit : NaN;
 
     if (!Number.isFinite(tf)) {
-      // demo: small deterministic percentages
       const u = hashToUnit(`${patientId}:${s.id}:${s.drawDate}`);
       const base = imprint ? 0.03 : 0.06; // percent
       const noise = (u - 0.5) * (analysisCompleted ? 0.01 : 0.03);
       const trend = analysisCompleted ? -0.01 * i : -0.003 * i;
       tf = clamp(base + noise + trend, 0.001, 0.12);
 
-      // smoothing
       if (i > 0) tf = clamp(prev * 0.65 + tf * 0.35, 0.001, 0.12);
     }
 
     prev = tf;
+
+    const date = String(s.drawDate ?? '');
+    const t = parseDate(date);
+
     return {
       x: i,
       y: tf,
       label: String(s.label ?? `Sample ${i + 1}`),
-      date: String(s.drawDate ?? ''),
+      date,
+      t: Number.isFinite(t) ? t : NaN,
     };
   });
 }
 
-function TimelinePlot({ points }: { points: Point[] }) {
+/**
+ * Smooth curve via Catmull–Rom to Bezier conversion.
+ */
+function catmullRomToBezierPath(pts: { x: number; y: number }[]) {
+  if (pts.length === 0) return '';
+  if (pts.length === 1) return `M ${pts[0].x} ${pts[0].y}`;
+
+  const path: string[] = [];
+  path.push(`M ${pts[0].x.toFixed(2)} ${pts[0].y.toFixed(2)}`);
+
+  for (let i = 0; i < pts.length - 1; i++) {
+    const p0 = pts[Math.max(0, i - 1)];
+    const p1 = pts[i];
+    const p2 = pts[i + 1];
+    const p3 = pts[Math.min(pts.length - 1, i + 2)];
+
+    const c1x = p1.x + (p2.x - p0.x) / 6;
+    const c1y = p1.y + (p2.y - p0.y) / 6;
+    const c2x = p2.x - (p3.x - p1.x) / 6;
+    const c2y = p2.y - (p3.y - p1.y) / 6;
+
+    path.push(
+      `C ${c1x.toFixed(2)} ${c1y.toFixed(2)}, ${c2x.toFixed(2)} ${c2y.toFixed(2)}, ${p2.x.toFixed(2)} ${p2.y.toFixed(2)}`,
+    );
+  }
+
+  return path.join(' ');
+}
+
+function makeYTicks(minY: number, maxY: number) {
+  // 4 ticks is enough (including min/max)
+  const ticks: number[] = [];
+  const steps = 3;
+  for (let i = 0; i <= steps; i++) {
+    const v = minY + (i / steps) * (maxY - minY);
+    ticks.push(v);
+  }
+  return ticks;
+}
+
+function TimelinePlot({
+  points,
+  threshold,
+  surgeryDate,
+}: {
+  points: Point[];
+  threshold: number;
+  surgeryDate?: string;
+}) {
   if (!points.length) {
     return (
       <div className="rounded-2xl border border-slate-200 bg-slate-50 p-6 text-sm text-slate-600">
-        No plasma samples yet (Step 3). Add at least one sample to see the chart here.
+        No plasma samples yet (Step 3). Add at least one timepoint to see the timeline.
       </div>
     );
   }
 
+  // ---- COLORS (only blues inside the chart) ----
+  const BLUE_LINE = '#0ea5e9'; // sky-500
+  const BLUE_TEXT = '#0284c7'; // sky-600
+  const BLUE_FAINT = '#0ea5e9'; // same, but via opacity
+  const AXIS = '#e2e8f0';
+  const LABEL = '#94a3b8'; // gray labels OK
+
   const W = 760;
-  const H = 220;
-  const pad = 22;
+  const H = 240;
 
-  const ys = points.map(p => p.y);
-  const minY = Math.min(...ys);
-  const maxY = Math.max(...ys);
-  const span = Math.max(0.001, maxY - minY);
+  // extra space on the left for Y labels
+  const padL = 54;
+  const padR = 24;
+  const padT = 22;
+  const padB = 28;
 
-  const sx = (i: number) => {
-    const denom = Math.max(1, points.length - 1);
-    return pad + (i / denom) * (W - pad * 2);
+  // ---- X scale by date, IMPORTANT: include surgery date in domain ----
+  const tsPoints = points.map(p => p.t).filter(t => Number.isFinite(t)) as number[];
+  const tSurg = surgeryDate ? parseDate(surgeryDate) : NaN;
+
+  const domainTs = [...tsPoints];
+  if (Number.isFinite(tSurg)) domainTs.push(tSurg);
+
+  const minT = Math.min(...domainTs);
+  const maxT = Math.max(...domainTs);
+  const spanT = Math.max(1, maxT - minT);
+
+  const sx = (t: number) => {
+    if (!Number.isFinite(t)) return padL;
+    if (domainTs.length === 1) return (padL + (W - padR)) / 2;
+    const u = (t - minT) / spanT;
+    return padL + u * (W - padL - padR);
   };
+
+  // ---- Y scale (include threshold in domain) ----
+  const ys = points.map(p => p.y);
+  const minY = Math.min(...ys, threshold);
+  const maxY = Math.max(...ys, threshold);
+  const spanY = Math.max(0.001, maxY - minY);
 
   const sy = (v: number) => {
-    const t = (v - minY) / span;
-    return H - pad - t * (H - pad * 2);
+    const u = (v - minY) / spanY;
+    return (H - padB) - u * (H - padT - padB);
   };
 
-  const d = points
-    .map((p, i) => `${i === 0 ? 'M' : 'L'} ${sx(i).toFixed(1)} ${sy(p.y).toFixed(1)}`)
-    .join(' ');
+  const pxPts = points.map(p => ({ x: sx(p.t), y: sy(p.y) }));
+  const dCurve = catmullRomToBezierPath(pxPts);
+
+  const yThr = sy(threshold);
+
+  const hasSurgery = Number.isFinite(tSurg);
+  const xSurg = hasSurgery ? sx(tSurg) : NaN;
+
+  // Area between curve and threshold
+  const areaPath = (() => {
+    if (pxPts.length < 2) {
+      const x = pxPts[0]?.x ?? padL;
+      const y = pxPts[0]?.y ?? yThr;
+      return `M ${x} ${y} L ${x} ${yThr} Z`;
+    }
+    const first = pxPts[0];
+    const last = pxPts[pxPts.length - 1];
+    return `${dCurve} L ${last.x.toFixed(2)} ${yThr.toFixed(2)} L ${first.x.toFixed(2)} ${yThr.toFixed(2)} Z`;
+  })();
+
+  // Y ticks (include threshold visually by drawing it; ticks are generic)
+  const ticks = makeYTicks(minY, maxY);
+
+  const gradId = 'tfBlueGrad';
 
   return (
     <div className="rounded-2xl border border-slate-200 bg-white p-4">
-      <svg viewBox={`0 0 ${W} ${H}`} className="h-55 w-full">
+      <svg viewBox={`0 0 ${W} ${H}`} className="h-60 w-full">
+        <defs>
+          {/* Light blue gradient: darker near curve -> lighter towards threshold */}
+          <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor={BLUE_FAINT} stopOpacity="0.18" />
+            <stop offset="100%" stopColor={BLUE_FAINT} stopOpacity="0.03" />
+          </linearGradient>
+        </defs>
+
+        {/* Axes */}
         <path
-          d={`M ${pad} ${pad} L ${pad} ${H - pad} L ${W - pad} ${H - pad}`}
+          d={`M ${padL} ${padT} L ${padL} ${H - padB} L ${W - padR} ${H - padB}`}
           fill="none"
-          stroke="#e2e8f0"
+          stroke={AXIS}
         />
-        <path d={d} fill="none" stroke="#0f172a" strokeWidth="2" />
+
+        {/* Y ticks + labels */}
+        {ticks.map((v, i) => {
+          const y = sy(v);
+          const isEdge = i === 0 || i === ticks.length - 1;
+          return (
+            <g key={`yt_${i}`}>
+              <line x1={padL - 6} y1={y} x2={padL} y2={y} stroke={AXIS} />
+              {/* optional faint grid */}
+              <line x1={padL} y1={y} x2={W - padR} y2={y} stroke={AXIS} opacity={isEdge ? 0.35 : 0.15} />
+              <text x={padL - 10} y={y + 4} textAnchor="end" fontSize="10" fill={LABEL}>
+                {fmtPct(v)}
+              </text>
+            </g>
+          );
+        })}
+
+        {/* Threshold line + label */}
+        <line
+          x1={padL}
+          y1={yThr}
+          x2={W - padR}
+          y2={yThr}
+          stroke={BLUE_LINE}
+          strokeDasharray="6 5"
+          opacity={0.55}
+        />
+        <text x={W - padR} y={yThr - 8} textAnchor="end" fontSize="11" fill={LABEL}>
+          Threshold
+        </text>
+
+        {/* Surgery vertical dashed line in correct X position */}
+        {hasSurgery ? (
+          <>
+            <line
+              x1={xSurg}
+              y1={padT}
+              x2={xSurg}
+              y2={H - padB}
+              stroke={BLUE_LINE}
+              strokeDasharray="4 4"
+              opacity={0.9}
+            />
+            <text x={xSurg} y={padT - 6} textAnchor="middle" fontSize="11" fill={BLUE_TEXT}>
+              SURGERY
+            </text>
+          </>
+        ) : null}
+
+        {/* Area */}
+        <path d={areaPath} fill={`url(#${gradId})`} />
+
+        {/* Curved line (blue) */}
+        <path d={dCurve} fill="none" stroke={BLUE_LINE} strokeWidth="2.4" />
+
+        {/* Points */}
         {points.map((p, i) => (
-          <g key={p.label + i}>
-            <circle cx={sx(i)} cy={sy(p.y)} r={4} fill="#ffffff" stroke="#0f172a" strokeWidth="2" />
+          <g key={`${p.label}_${i}`}>
+            <circle cx={sx(p.t)} cy={sy(p.y)} r={4} fill="#ffffff" stroke={BLUE_LINE} strokeWidth="2" />
           </g>
         ))}
+
+        {/* X labels (dates) - gray */}
+        {(() => {
+          const idxToShow = new Set<number>();
+          if (points.length <= 4) {
+            points.forEach((_, i) => idxToShow.add(i));
+          } else {
+            idxToShow.add(0);
+            idxToShow.add(points.length - 1);
+            idxToShow.add(Math.floor(points.length / 2));
+          }
+
+          return points.map((p, i) => {
+            if (!idxToShow.has(i)) return null;
+            const x = sx(p.t);
+            const y = H - 8;
+            return (
+              <text key={`d_${i}`} x={x} y={y} textAnchor="middle" fontSize="10" fill={LABEL}>
+                {p.date || '—'}
+              </text>
+            );
+          });
+        })()}
       </svg>
     </div>
   );
@@ -182,9 +367,7 @@ function StatusModal({ open, onClose }: { open: boolean; onClose: () => void }) 
         <div className="flex items-start justify-between gap-3 border-b border-slate-200 p-5">
           <div>
             <div className="text-base font-semibold text-slate-900">Status page (demo)</div>
-            <div className="mt-1 text-xs text-slate-500">
-              List of all patients and all plasma instances (like in the PDF table).
-            </div>
+            <div className="mt-1 text-xs text-slate-500">All patients and all plasma instances (demo).</div>
           </div>
 
           <button
@@ -220,10 +403,7 @@ function StatusModal({ open, onClose }: { open: boolean; onClose: () => void }) 
               </thead>
               <tbody>
                 {rows.map((r, idx) => (
-                  <tr
-                    key={`${r.patientId}_${r.sampleId}_${idx}`}
-                    className={idx % 2 ? 'bg-white' : 'bg-slate-50/30'}
-                  >
+                  <tr key={`${r.patientId}_${r.sampleId}_${idx}`} className={idx % 2 ? 'bg-white' : 'bg-slate-50/30'}>
                     <td className="px-4 py-3">
                       <div className="font-medium text-slate-900">{r.patientLabel || r.patientId}</div>
                       <div className="text-xs text-slate-500">{r.patientId}</div>
@@ -244,7 +424,7 @@ function StatusModal({ open, onClose }: { open: boolean; onClose: () => void }) 
           </div>
 
           <div className="mt-3 text-xs text-slate-500">
-            Note: TF values are demo placeholders for now. We will replace them with real analysis results.
+            Note: tumor fraction values are demo-generated on the frontend for now.
           </div>
         </div>
       </div>
@@ -281,18 +461,19 @@ export function Step5() {
 
   const interpretation = Number.isFinite(last)
     ? below
-      ? 'Likely response to therapy / low recurrence risk (demo logic)'
-      : 'No response / high recurrence risk (demo logic)'
-    : 'Add a plasma sample (Step 3) to compute MRD.';
+      ? 'Likely response / lower relapse risk (demo logic)'
+      : 'No response / higher relapse risk (demo logic)'
+    : 'Add a plasma timepoint (Step 3) to compute MRD.';
 
   const imprintMode = stored?.imprintCreated ? 'tumor-informed' : 'indication-guided (ImprintAI+)';
 
   const minY = points.length ? Math.min(...points.map(p => p.y)) : NaN;
   const maxY = points.length ? Math.max(...points.map(p => p.y)) : NaN;
 
+  const surgeryDate: string | undefined = stored?.surgeryDate || state.surgeryDate || undefined;
+
   return (
     <div className="space-y-5">
-      {/* header */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <div className="text-lg font-semibold">Step 5 — Results</div>
@@ -311,9 +492,7 @@ export function Step5() {
         </button>
       </div>
 
-      {/* ====== LAYOUT: SUMMARY ON TOP, TIMELINE BELOW ====== */}
       <div className="space-y-4">
-        {/* Summary (horizontal) */}
         <Card className="p-5">
           <div className="flex flex-wrap items-start justify-between gap-6">
             <div>
@@ -346,7 +525,6 @@ export function Step5() {
           </div>
         </Card>
 
-        {/* Timeline (chart + timepoints) */}
         <Card className="p-5">
           <div className="flex items-center justify-between gap-3">
             <div className="text-sm font-semibold text-slate-900">Tumor fraction timeline (demo)</div>
@@ -356,7 +534,7 @@ export function Step5() {
           </div>
 
           <div className="mt-4">
-            <TimelinePlot points={points} />
+            <TimelinePlot points={points} threshold={threshold} surgeryDate={surgeryDate} />
           </div>
 
           {points.length ? (
@@ -376,7 +554,7 @@ export function Step5() {
       </div>
 
       <div className="text-xs text-slate-500">
-        Demo: the chart and TF are computed deterministically on the frontend for now. We will replace them with real analysis results.
+        Demo note: timeline and tumor fraction values are generated deterministically on the frontend for now.
       </div>
 
       <StatusModal open={open} onClose={() => setOpen(false)} />

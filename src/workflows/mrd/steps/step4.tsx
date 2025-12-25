@@ -15,10 +15,18 @@ function InfoRow({ label, value }: { label: string; value: React.ReactNode }) {
   );
 }
 
+/**
+ * Step 4 requirements (from your task list):
+ * - Make blocks equal height (Patient / SNV / CNV)
+ * - Remove "Reset demo"
+ *
+ * Implementation notes:
+ * - Each "card-like" block is `h-full flex flex-col`
+ * - The action button is `mt-auto` so it sticks to bottom
+ */
 export function Step4() {
   const { state, activeStepId, setActiveStepId } = useWorkflow();
 
-  // ✅ ensure patientId is always a string from here on
   const selected = state.selectedPatient;
   if (!selected?.id) {
     return (
@@ -79,16 +87,8 @@ export function Step4() {
       analysisChannels: { SNV: 'idle', CNV: 'idle' },
     });
 
+    // Demo behavior kept: run starts -> open SNV substep
     setTimeout(() => setActiveStepId('step4_snv'), 600);
-  }
-
-  function handleResetDemo() {
-    upsertPatient({
-      analysisRunStarted: false,
-      analysisCompleted: false,
-      analysisRunAt: '',
-      analysisChannels: { SNV: 'idle', CNV: 'idle' },
-    });
   }
 
   const statusText = runCompleted
@@ -123,34 +123,26 @@ export function Step4() {
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={handleResetDemo}
-              className="rounded-full border border-slate-200 bg-white px-4 py-2 text-sm hover:border-slate-300"
-            >
-              Reset demo
-            </button>
-
-            <button
-              type="button"
-              onClick={handleRun}
-              disabled={!canRun}
-              className={[
-                'rounded-full px-4 py-2 text-sm',
-                canRun
-                  ? 'bg-slate-900 text-white hover:bg-slate-800'
-                  : 'cursor-not-allowed border border-slate-200 bg-slate-100 text-slate-400',
-              ].join(' ')}
-            >
-              Run analysis
-            </button>
-          </div>
+          {/* ✅ Reset demo removed полностью */}
+          <button
+            type="button"
+            onClick={handleRun}
+            disabled={!canRun}
+            className={[
+              'rounded-full px-4 py-2 text-sm',
+              canRun
+                ? 'bg-slate-900 text-white hover:bg-slate-800'
+                : 'cursor-not-allowed border border-slate-200 bg-slate-100 text-slate-400',
+            ].join(' ')}
+          >
+            Run analysis
+          </button>
         </div>
 
-        <div className="mt-4 grid grid-cols-12 gap-4">
-          <div className="col-span-12 lg:col-span-5">
-            <div className="rounded-2xl border border-slate-200 bg-white p-4">
+        <div className="mt-4 grid grid-cols-12 gap-4 items-stretch">
+          {/* Patient block (left) */}
+          <div className="col-span-12 lg:col-span-5 flex">
+            <div className="h-full w-full rounded-2xl border border-slate-200 bg-white p-4 flex flex-col">
               <div className="text-xs font-semibold text-slate-900">Patient</div>
 
               <div className="mt-2 space-y-2">
@@ -184,13 +176,17 @@ export function Step4() {
               {!hasPlasma ? <div className="mt-2 text-xs text-red-600">Requirement: add plasma in Step 3.</div> : null}
 
               {runCompleted ? <div className="mt-3 text-xs text-emerald-700">✓ Analysis completed</div> : null}
+
+              {/* Spacer so height matches and looks consistent */}
+              <div className="mt-auto" />
             </div>
           </div>
 
-          <div className="col-span-12 lg:col-span-7">
-            <div className="grid grid-cols-12 gap-4">
-              <div className="col-span-12 md:col-span-6">
-                <div className="rounded-2xl border border-slate-200 bg-white p-4">
+          {/* Channels (right) */}
+          <div className="col-span-12 lg:col-span-7 flex">
+            <div className="w-full grid grid-cols-12 gap-4">
+              <div className="col-span-12 md:col-span-6 flex">
+                <div className="h-full w-full rounded-2xl border border-slate-200 bg-white p-4 flex flex-col">
                   <div className="flex items-start justify-between gap-3">
                     <div>
                       <div className="text-sm font-semibold text-slate-900">SNV channel</div>
@@ -212,15 +208,15 @@ export function Step4() {
                   <button
                     type="button"
                     onClick={() => setActiveStepId('step4_snv')}
-                    className="mt-4 rounded-full border border-slate-200 bg-white px-4 py-2 text-sm hover:border-slate-300"
+                    className="mt-auto rounded-full border border-slate-200 bg-white px-4 py-2 text-sm hover:border-slate-300"
                   >
                     Open SNV channel
                   </button>
                 </div>
               </div>
 
-              <div className="col-span-12 md:col-span-6">
-                <div className="rounded-2xl border border-slate-200 bg-white p-4">
+              <div className="col-span-12 md:col-span-6 flex">
+                <div className="h-full w-full rounded-2xl border border-slate-200 bg-white p-4 flex flex-col">
                   <div className="flex items-start justify-between gap-3">
                     <div>
                       <div className="text-sm font-semibold text-slate-900">CNV channel</div>
@@ -242,18 +238,18 @@ export function Step4() {
                   <button
                     type="button"
                     onClick={() => setActiveStepId('step4_cnv')}
-                    className="mt-4 rounded-full border border-slate-200 bg-white px-4 py-2 text-sm hover:border-slate-300"
+                    className="mt-auto rounded-full border border-slate-200 bg-white px-4 py-2 text-sm hover:border-slate-300"
                   >
                     Open CNV channel
                   </button>
                 </div>
               </div>
             </div>
+          </div>
 
-            <div className="mt-4 text-xs text-slate-500">
-              Demo: Run → auto SNV → auto CNV → return. Auto-jump to Step 5 is disabled.
-              <span className="ml-2">(active: {activeStepId})</span>
-            </div>
+          <div className="col-span-12 mt-1 text-xs text-slate-500">
+            Demo: Run → auto SNV → auto CNV → return. Auto-jump to Step 5 is disabled.
+            <span className="ml-2">(active: {activeStepId})</span>
           </div>
         </div>
       </Card>

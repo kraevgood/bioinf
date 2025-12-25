@@ -20,10 +20,14 @@ function ProgressBar({ running }: { running: boolean }) {
   );
 }
 
+/**
+ * Step 4 substep: SNV
+ * Task: remove duplicated headers (tree already shows step title).
+ */
 export function Step4Snv() {
   const { state, activeStepId, setActiveStepId } = useWorkflow();
 
-  // ⚠️ hooks must always run, so we compute values that may be empty
+  // Hooks must always run -> safe empty values
   const patientId = state.selectedPatient?.id ?? '';
   const patientLabel = (state.selectedPatient?.label || patientId).trim();
 
@@ -60,13 +64,13 @@ export function Step4Snv() {
 
     const st = p.analysisChannels?.SNV ?? 'idle';
 
-    // if already done — jump to CNV
+    // If already done -> jump to CNV
     if (st === 'done') {
       const t = setTimeout(() => setActiveStepId('step4_cnv'), 800);
       return () => clearTimeout(t);
     }
 
-    // mark running
+    // Mark running
     upsertPatient({
       analysisChannels: {
         SNV: 'running',
@@ -90,11 +94,11 @@ export function Step4Snv() {
     return () => clearTimeout(timer);
   }, [patientId, isHere, setActiveStepId, upsertPatient]);
 
-  // ✅ conditional rendering is safe now because all hooks already ran
+  // After hooks -> conditional render is safe
   if (!patientId) {
     return (
       <div className="space-y-2">
-        <div className="text-lg font-semibold">Step 4 — SNV channel</div>
+        <div className="text-lg font-semibold">SNV channel</div>
         <div className="text-sm text-slate-600">Select a patient in Step 1 first.</div>
       </div>
     );
@@ -105,22 +109,30 @@ export function Step4Snv() {
   const mode = p?.imprintCreated ? 'tumor-informed' : p?.imprintSkipped ? 'indication-guided (ImprintAI+)' : 'auto';
 
   return (
-    <div className="space-y-5">
-      <div>
-        <div className="text-lg font-semibold">SNV channel</div>
-        <div className="mt-1 text-sm text-slate-600">
-          Mode: <span className="font-medium text-slate-900">{mode}</span>
-        </div>
+    <div className="space-y-4">
+      {/* ✅ Removed duplicated big header.
+          The tree already shows: "SNV channel".
+          Here we show only lightweight context. */}
+      <div className="text-sm text-slate-600">
+        Patient: <span className="font-medium text-slate-900">{patientLabel}</span>{' '}
+        <span className="text-slate-400">({patientId})</span> • Mode:{' '}
+        <span className="font-medium text-slate-900">{mode}</span>
       </div>
 
       <Card className="p-5">
         <div className="flex items-start justify-between gap-3">
           <div>
             <div className="text-sm font-semibold text-slate-900">AI-denoise + SNV calling</div>
-            <div className="mt-1 text-xs text-slate-500">Demo: progress → ✓ → jump to CNV.</div>
+            <div className="mt-1 text-xs text-slate-500">Demo: progress → ✓ → jumps to CNV.</div>
           </div>
           <div className="text-xs text-slate-600">
-            {st === 'done' ? <span className="font-semibold text-emerald-700">✓ Done</span> : st === 'running' ? 'Running…' : 'Idle'}
+            {st === 'done' ? (
+              <span className="font-semibold text-emerald-700">✓ Done</span>
+            ) : st === 'running' ? (
+              'Running…'
+            ) : (
+              'Idle'
+            )}
           </div>
         </div>
 

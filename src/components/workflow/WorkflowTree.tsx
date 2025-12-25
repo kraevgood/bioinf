@@ -5,13 +5,30 @@ import type { WorkflowStep, StepStatus } from '@/types/workflow';
 import { useWorkflow } from './WorkflowContext';
 import { PatientsStore } from '@/store/patientsStore';
 
-function markerClass(status: StepStatus, active: boolean) {
+/**
+ * Marker (left circle with step number):
+ * IMPORTANT: we DO NOT color it by status anymore.
+ * Status indication lives on the badge (right pill).
+ */
+function markerClass(active: boolean) {
   const base = 'flex h-7 w-7 items-center justify-center rounded-full border text-xs';
   if (active) return `${base} border-slate-400 bg-slate-50 text-slate-900`;
+  return `${base} border-slate-200 bg-white text-slate-500`;
+}
+
+/**
+ * Badge (right pill):
+ * This is where we show completion / processing / error with color.
+ */
+function badgeClass(status: StepStatus, active: boolean) {
+  const base = 'shrink-0 rounded-full border px-3 py-1 text-xs transition-colors';
+
   if (status === 'done') return `${base} border-emerald-300 bg-emerald-50 text-emerald-800`;
   if (status === 'processing') return `${base} border-amber-300 bg-amber-50 text-amber-900`;
   if (status === 'error') return `${base} border-red-300 bg-red-50 text-red-800`;
-  return `${base} border-slate-200 bg-white text-slate-500`;
+
+  if (active) return `${base} border-slate-300 bg-white text-slate-700`;
+  return `${base} border-slate-200 bg-white text-slate-600`;
 }
 
 function computeStatus(
@@ -19,7 +36,7 @@ function computeStatus(
   patientId: string | null,
   workflowState: { selectedPatient: { id: string } | null },
 ): StepStatus | undefined {
-  // ✅ Step 1 is considered complete when a patient is selected
+  // Step1 done when patient is selected
   if (stepId === 'step1') {
     return workflowState.selectedPatient ? 'done' : undefined;
   }
@@ -54,6 +71,12 @@ function computeStatus(
     if (s === 'done') return 'done';
     if (s === 'running') return 'processing';
     return undefined;
+  }
+
+  // ✅ Task #4: Step3 done ONLY after >= 3 plasma samples
+  if (stepId === 'step3') {
+    const n = p.plasmaSamples?.length ?? 0;
+    return n >= 3 ? 'done' : undefined;
   }
 
   // Step4 main
@@ -118,7 +141,7 @@ function TreeItem({
       >
         <div className="flex items-start gap-3">
           <div className="pt-0.5">
-            <div className={markerClass(status, active)}>{status === 'done' ? '✓' : markerText}</div>
+            <div className={markerClass(active)}>{markerText}</div>
           </div>
 
           <div className="min-w-0 flex-1">
@@ -128,11 +151,7 @@ function TreeItem({
                 {step.subtitle ? <div className="mt-1 text-xs text-slate-500">{step.subtitle}</div> : null}
               </div>
 
-              {step.badgeText ? (
-                <div className="shrink-0 rounded-full border border-slate-200 bg-white px-3 py-1 text-xs text-slate-600">
-                  {step.badgeText}
-                </div>
-              ) : null}
+              {step.badgeText ? <div className={badgeClass(status, active)}>{step.badgeText}</div> : null}
             </div>
           </div>
         </div>
@@ -140,9 +159,7 @@ function TreeItem({
 
       {step.children?.length ? (
         <div className="relative mt-3">
-          {/* left vertical line for sub-steps */}
           <div className="absolute left-3.5 top-0 h-full w-px bg-slate-200" />
-
           <div className="space-y-3">
             {step.children.map(child => (
               <TreeItem key={child.id} step={child} activeId={activeId} onSelect={onSelect} depth={depth + 1} />

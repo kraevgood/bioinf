@@ -15,42 +15,13 @@ type Slot = {
   error?: string;
 };
 
-const VALIDATE_TIME_MS = 3000; // simulated validation time (3s)
-const PROCESS_TIME_MS = 4000; // demo scan time per sub-step
+const VALIDATE_TIME_MS = 800;
+const PROCESS_TIME_MS = 1400;
 
-function extOk(name: string) {
-  const n = name.toLowerCase();
-  return n.endsWith('.fastq') || n.endsWith('.fq') || n.endsWith('.fastq.gz') || n.endsWith('.fq.gz');
-}
-
-function bytesToHuman(n: number) {
-  const units = ['B', 'KB', 'MB', 'GB'];
-  let i = 0;
-  let v = n;
-  while (v >= 1024 && i < units.length - 1) {
-    v = v / 1024;
-    i++;
-  }
-  return `${v.toFixed(i === 0 ? 0 : 1)} ${units[i]}`;
-}
-
-function Spinner({ className = '' }: { className?: string }) {
-  return (
-    <span
-      className={[
-        'inline-block h-4 w-4 animate-spin rounded-full border-2 border-slate-300 border-t-slate-700',
-        className,
-      ].join(' ')}
-      aria-label="loading"
-    />
-  );
-}
-
-function FileUploadRow({
+function FileSlot({
   title,
   file,
   error,
-  disabled,
   validating,
   validatedOk,
   onPick,
@@ -59,7 +30,6 @@ function FileUploadRow({
   title: string;
   file: File | null;
   error?: string;
-  disabled: boolean;
   validating: boolean;
   validatedOk: boolean;
   onPick: (f: File | null) => void;
@@ -75,58 +45,42 @@ function FileUploadRow({
       <div className="text-xs text-slate-500">{title}</div>
 
       <div className={['rounded-2xl border px-4 py-3', border, bg].join(' ')}>
-        <div className="flex items-center justify-between gap-3">
-          <div className="min-w-0 flex-1">
-            {file ? (
-              <div className="truncate text-sm">
-                <span className="font-medium text-slate-900">{file.name}</span>{' '}
-                <span className="text-slate-400">({bytesToHuman(file.size)})</span>
-              </div>
-            ) : (
-              <div className="text-sm text-slate-500">No file selected</div>
-            )}
-
-            {error ? <div className="mt-1 text-xs text-red-700">{error}</div> : null}
-            {!error && validatedOk ? <div className="mt-1 text-xs text-emerald-700">✓ Validated</div> : null}
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <div className="truncate text-sm font-medium text-slate-900">{file ? file.name : 'No file selected'}</div>
+            <div className="mt-1 text-xs text-slate-500">
+              {file ? `${Math.round(file.size / 1024)} KB` : 'Pick a FASTQ(.gz) file.'}
+            </div>
+            {error ? <div className="mt-1 text-xs font-medium text-red-700">{error}</div> : null}
+            {!error && validating ? <div className="mt-1 text-xs text-slate-500">Validating…</div> : null}
           </div>
 
-          <div className="flex items-center gap-2">
-            {validating ? <Spinner /> : null}
-            {!validating && validatedOk ? <span className="text-emerald-700 text-sm font-semibold">✓</span> : null}
-
+          <div className="flex shrink-0 items-center gap-2">
             <input
               ref={inputRef}
               type="file"
               className="hidden"
-              disabled={disabled}
-              accept=".fastq,.fq,.fastq.gz,.fq.gz"
-              onChange={e => onPick(e.target.files?.[0] ?? null)}
+              onChange={e => {
+                const f = e.target.files?.[0] ?? null;
+                onPick(f);
+              }}
             />
-
             <button
               type="button"
-              disabled={disabled}
+              disabled={validating}
               onClick={() => inputRef.current?.click()}
-              className={[
-                'rounded-xl border px-3 py-2 text-xs font-semibold',
-                disabled
-                  ? 'border-slate-200 bg-slate-100 text-slate-400'
-                  : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50',
-              ].join(' ')}
+              className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-60"
             >
-              Browse
+              Upload
             </button>
-
             <button
               type="button"
-              disabled={disabled || !file}
-              onClick={onClear}
-              className={[
-                'rounded-xl border px-3 py-2 text-xs font-semibold',
-                disabled || !file
-                  ? 'border-slate-200 bg-slate-100 text-slate-400'
-                  : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50',
-              ].join(' ')}
+              disabled={validating || !file}
+              onClick={() => {
+                onClear();
+                if (inputRef.current) inputRef.current.value = '';
+              }}
+              className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50 disabled:opacity-60"
             >
               Clear
             </button>
@@ -163,20 +117,26 @@ function ScanCard({
       {running ? (
         <div className="mt-4">
           <div className="h-2 w-full overflow-hidden rounded-full bg-slate-100">
-            <div className="h-2 w-1/3 animate-pulse rounded-full bg-slate-300" />
+            <div className="h-full w-2/3 rounded-full bg-sky-500" />
           </div>
-          <div className="mt-2 text-xs text-slate-500">Analyzing reads, suppressing noise, extracting features…</div>
+          <div className="mt-2 text-[11px] text-slate-500">Demo run (mock processing)…</div>
         </div>
       ) : null}
-
-      {done ? <div className="mt-4 text-xs text-emerald-700">✓ Completed</div> : null}
     </div>
   );
 }
 
+/**
+ * IMPORTANT:
+ * This component must be a NAMED export (`export function Step2`)
+ * because src/workflows/mrd/config.tsx imports it as:
+ *   import { Step2 } from "./steps/step2";
+ */
 export function Step2() {
   const { state, activeStepId, setActiveStepId } = useWorkflow();
+
   const patientId = state.selectedPatient?.id ?? null;
+  const patientLabel = state.selectedPatient?.label ?? patientId;
 
   const isMain = activeStepId === 'step2';
   const isLoh = activeStepId === 'step2_loh';
@@ -204,51 +164,33 @@ export function Step2() {
 
   function upsertPatient(patch: Record<string, unknown>) {
     if (!patientId) return;
-    PatientsStore.upsert({
-      id: patientId,
-      label: state.selectedPatient?.label || patientId,
-      ...patch,
-    });
+    PatientsStore.upsert({ id: patientId, label: patientLabel ?? patientId, ...patch });
   }
 
   function setSlotFile(key: FileSlotKey, file: File | null) {
-    setSlots(prev =>
-      prev.map(s => {
-        if (s.key !== key) return s;
-        return { ...s, file, error: undefined };
-      }),
-    );
-    setGlobalError(null);
-
-    // files changed → reset validation
-    if (patientId) upsertPatient({ imprintValidated: false });
+    setSlots(prev => prev.map(s => (s.key === key ? { ...s, file, error: undefined } : s)));
   }
 
-  function clearSlot(key: FileSlotKey) {
-    setSlotFile(key, null);
-  }
-
-  function validateInputs(): boolean {
-    setGlobalError(null);
+  function validateAll(): boolean {
     let ok = true;
 
     setSlots(prev =>
       prev.map(s => {
-        const isTumor = s.key === 'tR1' || s.key === 'tR2';
-        if (isTumor && !tumorAvailable) return { ...s, error: undefined };
+        if (s.key === 'tR1' || s.key === 'tR2') {
+          if (!tumorAvailable) return { ...s, error: undefined };
+        }
 
         if (!s.file) {
           ok = false;
-          return { ...s, error: 'File required' };
+          return { ...s, error: 'Missing file' };
         }
-        if (!extOk(s.file.name)) {
+
+        const name = s.file.name.toLowerCase();
+        if (!name.includes('fastq')) {
           ok = false;
-          return { ...s, error: 'Invalid extension (fastq/fq/fastq.gz/fq.gz)' };
+          return { ...s, error: 'Expected FASTQ' };
         }
-        if (s.file.size <= 0) {
-          ok = false;
-          return { ...s, error: 'File is empty' };
-        }
+
         return { ...s, error: undefined };
       }),
     );
@@ -272,24 +214,14 @@ export function Step2() {
   async function handleValidate() {
     if (!patientId) return;
 
-    if (!tumorAvailable) {
-      upsertPatient({
-        tumorAvailable,
-        imprintSkipped: true,
-        imprintSkipReason: 'no_tumor',
-        imprintValidated: false,
-      });
-      setGlobalError(null);
-      return;
-    }
+    setGlobalError(null);
 
     if (!haveAllRequiredFiles()) {
-      setGlobalError('Upload all required FASTQ files first (Normal R1/R2 + Tumor R1/R2).');
-      validateInputs();
+      setGlobalError('Please upload all required files first.');
       return;
     }
 
-    const ok = validateInputs();
+    const ok = validateAll();
     if (!ok) return;
 
     setBusy(true);
@@ -315,6 +247,14 @@ export function Step2() {
     const stored = PatientsStore.findById(patientId);
 
     if (!tumorAvailable) {
+      // tumor missing -> skip imprint
+      upsertPatient({
+        tumorAvailable: false,
+        imprintSkipped: true,
+        imprintSkipReason: 'Tumor not available',
+        imprintRunStarted: false,
+        imprintInputsReady: false,
+      });
       setActiveStepId('step3');
       return;
     }
@@ -324,8 +264,7 @@ export function Step2() {
       return;
     }
 
-    if (stored.imprintRunStarted) return;
-
+    // Start imprint pipeline from Step 2 main screen ONLY
     upsertPatient({
       imprintRunStarted: true,
       imprintInputsReady: true,
@@ -337,6 +276,7 @@ export function Step2() {
     setTimeout(() => setActiveStepId('step2_loh'), 800);
   }
 
+  // SUBSTEPS autorun (Task #3): only if imprintRunStarted === true
   React.useEffect(() => {
     if (!patientId) return;
 
@@ -349,6 +289,9 @@ export function Step2() {
       setActiveStepId('step2');
       return;
     }
+
+    // Task #3: do NOT auto-run if user just opened substep
+    if (!p?.imprintRunStarted) return;
 
     const current = p?.imprintModules?.[moduleKey];
     if (current === 'done') {
@@ -392,7 +335,6 @@ export function Step2() {
         });
 
         setTimeout(() => setActiveStepId('step2'), 1200);
-        // IMPORTANT: do not auto-jump to Step 3
       }
     }, PROCESS_TIME_MS);
 
@@ -409,9 +351,9 @@ export function Step2() {
     );
   }
 
-  const patientLabel = state.selectedPatient?.label ?? patientId;
   const stored = PatientsStore.findById(patientId);
 
+  // SUBSTEPS (Task #2): no duplicated big titles — tree already shows it
   if (!isMain) {
     const title = isLoh ? 'LOH discovery' : isCnv ? 'CNV segments' : 'SNV compendium';
     const subtitle = isLoh
@@ -425,11 +367,29 @@ export function Step2() {
 
     return (
       <div className="space-y-4">
-        <div className="text-lg font-semibold">{title}</div>
         <div className="text-sm text-slate-600">
           Patient: <span className="font-medium text-slate-900">{patientLabel}</span>{' '}
           <span className="text-slate-400">({patientId})</span>
         </div>
+
+        {/* Task #3: guidance when opened manually */}
+        {!stored?.imprintRunStarted ? (
+          <Card className="p-5">
+            <div className="text-sm font-semibold text-slate-900">Imprint pipeline not started</div>
+            <div className="mt-1 text-xs text-slate-500">
+              Start the imprint pipeline from Step 2 (FASTQ upload) to run LOH → CNV → SNV.
+            </div>
+            <div className="mt-4">
+              <button
+                type="button"
+                onClick={() => setActiveStepId('step2')}
+                className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+              >
+                Go to Step 2
+              </button>
+            </div>
+          </Card>
+        ) : null}
 
         <ScanCard title={title} subtitle={subtitle} running={st === 'running'} done={st === 'done'} />
         <div className="text-xs text-slate-500">Demo: scan → ✓ → next sub-step.</div>
@@ -437,7 +397,8 @@ export function Step2() {
     );
   }
 
-  const canValidate = !busy && tumorAvailable && !stored?.imprintCreated;
+  // MAIN
+  const canValidate = !busy && !stored?.imprintCreated;
   const canNext = !busy && (tumorAvailable ? !!stored?.imprintValidated : true);
 
   return (
@@ -450,9 +411,16 @@ export function Step2() {
       </div>
 
       {stored?.imprintCreated ? (
-        <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
-          Imprint already created for this patient.
+        <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-900">
+          ✓ Imprint is ready.
+          <div className="mt-1 text-xs text-emerald-800">
+            Created: {stored.imprintCreatedAt ? new Date(stored.imprintCreatedAt).toLocaleString() : '—'}
+          </div>
         </div>
+      ) : null}
+
+      {globalError ? (
+        <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-900">{globalError}</div>
       ) : null}
 
       <Card className="p-5">
@@ -469,91 +437,82 @@ export function Step2() {
               type="checkbox"
               checked={tumorAvailable}
               onChange={e => {
-                const next = e.target.checked;
-                setTumorAvailable(next);
-
-                setGlobalError(null);
-                upsertPatient({
-                  tumorAvailable: next,
-                  imprintSkipped: !next,
-                  imprintSkipReason: !next ? 'no_tumor' : undefined,
-                  imprintValidated: false,
-                  imprintValidationAt: undefined,
-                });
+                setTumorAvailable(e.target.checked);
+                upsertPatient({ tumorAvailable: e.target.checked });
               }}
             />
             Tumor available
           </label>
         </div>
 
-        {!tumorAvailable ? (
-          <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
-            Tumor files not available → Step 2 can be skipped.
-            <div className="mt-2 text-xs text-slate-600">
-              In Step 3 we will enable <span className="font-semibold">ImprintAI+</span> (indication-aware:{' '}
-              <span className="font-semibold">{state.indication || '—'}</span>).
-            </div>
-          </div>
-        ) : null}
+        <div className="mt-5 grid gap-4 md:grid-cols-2">
+          <FileSlot
+            title={slots.find(s => s.key === 'nR1')?.title ?? 'Normal R1'}
+            file={slots.find(s => s.key === 'nR1')?.file ?? null}
+            error={slots.find(s => s.key === 'nR1')?.error}
+            validating={validating}
+            validatedOk={!!stored?.imprintValidated && !!slots.find(s => s.key === 'nR1')?.file}
+            onPick={f => setSlotFile('nR1', f)}
+            onClear={() => setSlotFile('nR1', null)}
+          />
+          <FileSlot
+            title={slots.find(s => s.key === 'nR2')?.title ?? 'Normal R2'}
+            file={slots.find(s => s.key === 'nR2')?.file ?? null}
+            error={slots.find(s => s.key === 'nR2')?.error}
+            validating={validating}
+            validatedOk={!!stored?.imprintValidated && !!slots.find(s => s.key === 'nR2')?.file}
+            onPick={f => setSlotFile('nR2', f)}
+            onClear={() => setSlotFile('nR2', null)}
+          />
 
-        {globalError ? (
-          <div className="mt-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-            {globalError}
-          </div>
-        ) : null}
-
-        <div className="mt-4 grid grid-cols-12 gap-4">
-          {slots.map(s => {
-            const isTumor = s.key === 'tR1' || s.key === 'tR2';
-            const disabled = busy || stored?.imprintCreated || (isTumor && !tumorAvailable);
-            const validatedOk = !!stored?.imprintValidated && !!s.file && !s.error && (!isTumor || tumorAvailable);
-
-            return (
-              <div key={s.key} className="col-span-12 md:col-span-6">
-                <FileUploadRow
-                  title={s.title}
-                  file={s.file}
-                  error={s.error}
-                  disabled={disabled}
-                  validating={validating}
-                  validatedOk={validatedOk}
-                  onPick={f => setSlotFile(s.key, f)}
-                  onClear={() => clearSlot(s.key)}
-                />
-              </div>
-            );
-          })}
+          {tumorAvailable ? (
+            <>
+              <FileSlot
+                title={slots.find(s => s.key === 'tR1')?.title ?? 'Tumor R1'}
+                file={slots.find(s => s.key === 'tR1')?.file ?? null}
+                error={slots.find(s => s.key === 'tR1')?.error}
+                validating={validating}
+                validatedOk={!!stored?.imprintValidated && !!slots.find(s => s.key === 'tR1')?.file}
+                onPick={f => setSlotFile('tR1', f)}
+                onClear={() => setSlotFile('tR1', null)}
+              />
+              <FileSlot
+                title={slots.find(s => s.key === 'tR2')?.title ?? 'Tumor R2'}
+                file={slots.find(s => s.key === 'tR2')?.file ?? null}
+                error={slots.find(s => s.key === 'tR2')?.error}
+                validating={validating}
+                validatedOk={!!stored?.imprintValidated && !!slots.find(s => s.key === 'tR2')?.file}
+                onPick={f => setSlotFile('tR2', f)}
+                onClear={() => setSlotFile('tR2', null)}
+              />
+            </>
+          ) : null}
         </div>
 
-        <div className="mt-5 flex flex-wrap items-center gap-3">
+        <div className="mt-6 flex flex-wrap items-center gap-3">
           <button
             type="button"
-            disabled={!canValidate || validating}
+            disabled={!canValidate}
             onClick={handleValidate}
-            className={[
-              'inline-flex items-center gap-2 rounded-2xl border px-5 py-2 text-sm font-semibold',
-              !canValidate || validating
-                ? 'border-slate-200 bg-slate-100 text-slate-400'
-                : 'border-slate-200 bg-white text-slate-800 hover:bg-slate-50',
-            ].join(' ')}
+            className="rounded-xl bg-sky-600 px-4 py-2 text-sm font-semibold text-white hover:bg-sky-700 disabled:opacity-60"
           >
-            {validating ? <Spinner /> : null}
-            {validating ? 'Validating…' : 'Validate'}
+            Validate files
           </button>
 
           <button
             type="button"
             disabled={!canNext}
             onClick={handleNext}
-            className={[
-              'rounded-2xl border px-5 py-2 text-sm font-semibold',
-              !canNext ? 'border-slate-200 bg-slate-100 text-slate-400' : 'border-slate-200 bg-white text-slate-800 hover:bg-slate-50',
-            ].join(' ')}
+            className="rounded-xl bg-sky-600 px-4 py-2 text-sm font-semibold text-white hover:bg-sky-700 disabled:opacity-60"
           >
-            Start
+            Next (start imprint)
           </button>
 
-          {tumorAvailable && !stored?.imprintValidated ? <div className="text-xs text-slate-500">Validate to enable Next.</div> : null}
+          {!tumorAvailable ? (
+            <div className="text-xs text-slate-500">
+              Tumor not available → imprint is skipped and you can proceed to plasma (Step 3).
+            </div>
+          ) : null}
         </div>
       </Card>
     </div>

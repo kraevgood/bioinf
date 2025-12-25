@@ -15,7 +15,7 @@ type Slot = {
   error?: string;
 };
 
-const VALIDATE_TIME_MS = 3000; // simulated validation time (3s)
+const VALIDATE_TIME_MS = 3000;
 
 function extOk(name: string) {
   const n = name.toLowerCase();
@@ -23,126 +23,128 @@ function extOk(name: string) {
 }
 
 function bytesToHuman(n: number) {
-  const units = ['B', 'KB', 'MB', 'GB'];
-  let i = 0;
-  let v = n;
-  while (v >= 1024 && i < units.length - 1) {
-    v = v / 1024;
-    i++;
-  }
-  return `${v.toFixed(i === 0 ? 0 : 1)} ${units[i]}`;
+  const kb = n / 1024;
+  if (kb < 1024) return `${Math.round(kb)} KB`;
+  const mb = kb / 1024;
+  return `${mb.toFixed(1)} MB`;
 }
 
-function Spinner({ className = '' }: { className?: string }) {
+function toISODate(d: Date) {
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const dd = String(d.getDate()).padStart(2, '0');
+  return `${yyyy}-${mm}-${dd}`;
+}
+
+function addDays(iso: string, days: number) {
+  const d = iso ? new Date(`${iso}T00:00:00`) : new Date();
+  d.setDate(d.getDate() + days);
+  return toISODate(d);
+}
+
+function uid(prefix = 'plasma') {
+  return `${prefix}_${Math.random().toString(16).slice(2)}_${Date.now()}`;
+}
+
+function computeRelationToSurgery(drawDate: string, surgeryDate?: string) {
+  if (!drawDate || !surgeryDate) return { relation: 'Plasma', dayOffset: undefined as number | undefined };
+
+  const d1 = new Date(`${drawDate}T00:00:00`);
+  const d2 = new Date(`${surgeryDate}T00:00:00`);
+  const diffDays = Math.round((d1.getTime() - d2.getTime()) / (1000 * 60 * 60 * 24));
+
+  if (diffDays < 0) return { relation: `Pre-op (day ${diffDays})`, dayOffset: diffDays };
+  if (diffDays === 0) return { relation: 'Op day', dayOffset: diffDays };
+  return { relation: `Post-op (day ${diffDays})`, dayOffset: diffDays };
+}
+
+function getSamplesFromStored(stored: unknown): PlasmaSample[] {
+  if (!stored || typeof stored !== 'object') return [];
+  const rec = stored as { plasmaSamples?: unknown };
+  if (!Array.isArray(rec.plasmaSamples)) return [];
+  return rec.plasmaSamples as PlasmaSample[];
+}
+
+function FieldBlock({
+  title,
+  description,
+  children,
+}: {
+  title: string;
+  description: string;
+  children: React.ReactNode;
+}) {
+  // ✅ fixed height so both columns start inputs at the same Y
   return (
-    <span
-      className={[
-        'inline-block h-4 w-4 animate-spin rounded-full border-2 border-slate-300 border-t-slate-700',
-        className,
-      ].join(' ')}
-      aria-label="loading"
-    />
+    <div className="space-y-2">
+      <div className="h-14">
+        <div className="text-sm font-semibold text-slate-900">{title}</div>
+        <div className="mt-1 text-xs text-slate-500">{description}</div>
+      </div>
+      {children}
+    </div>
   );
 }
 
-function FileUploadRow({
+
+function FileSlot({
   title,
   file,
   error,
-  disabled,
   validating,
-  validatedOk,
   onPick,
   onClear,
 }: {
   title: string;
   file: File | null;
   error?: string;
-  disabled: boolean;
   validating: boolean;
-  validatedOk: boolean;
   onPick: (f: File | null) => void;
   onClear: () => void;
 }) {
   const inputRef = React.useRef<HTMLInputElement | null>(null);
 
-  // ✅ important: when state resets (file=null), also reset the underlying DOM input value
-  React.useEffect(() => {
-    if (!file && inputRef.current) {
-      inputRef.current.value = '';
-    }
-  }, [file]);
-
-  const border = error ? 'border-red-200' : validatedOk ? 'border-emerald-200' : 'border-slate-200';
-  const bg = error ? 'bg-red-50' : validatedOk ? 'bg-emerald-50' : 'bg-white';
+  const border = error ? 'border-red-200' : file ? 'border-slate-300' : 'border-slate-200';
+  const bg = error ? 'bg-red-50' : 'bg-white';
 
   return (
     <div className="space-y-1">
       <div className="text-xs text-slate-500">{title}</div>
 
       <div className={['rounded-2xl border px-4 py-3', border, bg].join(' ')}>
-        <div className="flex items-center justify-between gap-3">
-          <div className="min-w-0 flex-1">
-            {file ? (
-              <div className="truncate text-sm">
-                <span className="font-medium text-slate-900">{file.name}</span>{' '}
-                <span className="text-slate-400">({bytesToHuman(file.size)})</span>
-              </div>
-            ) : (
-              <div className="text-sm text-slate-500">No file selected</div>
-            )}
-
-            {error ? <div className="mt-1 text-xs text-red-700">{error}</div> : null}
-            {!error && validatedOk ? <div className="mt-1 text-xs text-emerald-700">✓ Validated</div> : null}
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <div className="truncate text-sm font-medium text-slate-900">{file ? file.name : 'No file selected'}</div>
+            <div className="mt-1 text-xs text-slate-500">{file ? bytesToHuman(file.size) : 'Pick a FASTQ(.gz) file.'}</div>
+            {error ? <div className="mt-1 text-xs font-medium text-red-700">{error}</div> : null}
           </div>
 
-          <div className="flex items-center gap-2">
-            {validating ? <Spinner /> : null}
-            {!validating && validatedOk ? <span className="text-emerald-700 text-sm font-semibold">✓</span> : null}
-
+          <div className="flex shrink-0 items-center gap-2">
             <input
               ref={inputRef}
               type="file"
               className="hidden"
-              disabled={disabled}
-              accept=".fastq,.fq,.fastq.gz,.fq.gz"
               onChange={e => {
-                const f = e.currentTarget.files?.[0] ?? null;
+                const f = e.target.files?.[0] ?? null;
                 onPick(f);
-
-                // ✅ critical: reset so the same file can be selected again
-                e.currentTarget.value = '';
               }}
             />
-
             <button
               type="button"
-              disabled={disabled}
+              disabled={validating}
               onClick={() => inputRef.current?.click()}
-              className={[
-                'rounded-xl border px-3 py-2 text-xs font-semibold',
-                disabled
-                  ? 'border-slate-200 bg-slate-100 text-slate-400'
-                  : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50',
-              ].join(' ')}
+              className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-60"
             >
-              Browse
+              Upload
             </button>
-
             <button
               type="button"
-              disabled={disabled || !file}
+              disabled={validating || !file}
               onClick={() => {
                 onClear();
-                // ✅ and here as well
                 if (inputRef.current) inputRef.current.value = '';
               }}
-              className={[
-                'rounded-xl border px-3 py-2 text-xs font-semibold',
-                disabled || !file
-                  ? 'border-slate-200 bg-slate-100 text-slate-400'
-                  : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50',
-              ].join(' ')}
+              className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50 disabled:opacity-60"
             >
               Clear
             </button>
@@ -153,124 +155,73 @@ function FileUploadRow({
   );
 }
 
-
 /**
- * IMPORTANT:
- * Previously, if surgeryDate was missing, we returned "first plasma".
- * That made every timepoint without surgery look the same.
- * Now: if there is no surgery date — relation = "—" (undefined).
+ * Step 3 — Add plasma sample
+ * Fixes:
+ * - Align top fields symmetrically (same header height)
+ * - Show surgery date near patient (important for choosing timepoints)
  */
-function computeRelation(drawDateISO: string, surgeryDateISO?: string) {
-  if (!surgeryDateISO) return { relation: '—', dayOffset: 0 };
-
-  const draw = new Date(drawDateISO);
-  const surg = new Date(surgeryDateISO);
-
-  const diffMs = draw.getTime() - surg.getTime();
-  const dayOffset = Math.round(diffMs / (24 * 60 * 60 * 1000));
-
-  if (dayOffset < 0) return { relation: `pre-op day ${Math.abs(dayOffset)}`, dayOffset };
-  if (dayOffset === 0) return { relation: 'day 0', dayOffset };
-  return { relation: `post-op day ${dayOffset}`, dayOffset };
-}
-
-/**
- * Generate display label based on plasma draw date.
- * - Base: "Plasma YYYY-MM-DD"
- * - If surgery date exists: append "(pre-op day X / day 0 / post-op day X)"
- */
-function makeAutoLabel(drawDateISO: string, surgeryDateISO?: string) {
-  const base = `Plasma ${drawDateISO}`;
-  if (!surgeryDateISO) return base;
-
-  const rel = computeRelation(drawDateISO, surgeryDateISO).relation;
-  return rel && rel !== '—' ? `${base} (${rel})` : base;
-}
-
 export function Step3() {
   const { state } = useWorkflow();
-  const patientId = state.selectedPatient?.id ?? null;
 
-  const [drawDate, setDrawDate] = React.useState<string>(''); // yyyy-mm-dd
-  const [customLabel, setCustomLabel] = React.useState<string>(''); // keep for later (optional override)
+  const patientId = state.selectedPatient?.id ?? null;
+  const patientLabel = state.selectedPatient?.label ?? patientId;
+
+  const [drawDate, setDrawDate] = React.useState('');
+  const [customLabel, setCustomLabel] = React.useState('');
 
   const [slots, setSlots] = React.useState<Slot[]>([
     { key: 'pR1', title: 'Plasma FASTQ — R1', file: null },
     { key: 'pR2', title: 'Plasma FASTQ — R2', file: null },
   ]);
 
-  const [globalError, setGlobalError] = React.useState<string | null>(null);
   const [validating, setValidating] = React.useState(false);
   const [validated, setValidated] = React.useState(false);
+  const [globalError, setGlobalError] = React.useState<string | null>(null);
 
-  function upsertPatient(patch: Record<string, unknown>) {
+  const stored = patientId ? PatientsStore.findById(patientId) : null;
+  const surgeryDate = stored?.surgeryDate;
+
+  const samples: PlasmaSample[] = getSamplesFromStored(stored);
+
+  function upsertSamples(nextSamples: PlasmaSample[]) {
     if (!patientId) return;
     PatientsStore.upsert({
       id: patientId,
       label: state.selectedPatient?.label || patientId,
-      ...patch,
+      plasmaSamples: nextSamples,
     });
   }
 
   function setSlotFile(key: FileSlotKey, file: File | null) {
-    setSlots(prev =>
-      prev.map(s => {
-        if (s.key !== key) return s;
-        return { ...s, file, error: undefined };
-      }),
-    );
-    setValidated(false);
-    setGlobalError(null);
+    setSlots(prev => prev.map(s => (s.key === key ? { ...s, file, error: undefined } : s)));
   }
 
-  function clearSlot(key: FileSlotKey) {
-    setSlotFile(key, null);
-  }
-
-  function validateInputs(): boolean {
-    setGlobalError(null);
-
+  function validateFilesLocal(): boolean {
     let ok = true;
+
     setSlots(prev =>
       prev.map(s => {
         if (!s.file) {
           ok = false;
-          return { ...s, error: 'File required' };
+          return { ...s, error: 'Missing file' };
         }
         if (!extOk(s.file.name)) {
           ok = false;
-          return { ...s, error: 'Invalid extension (fastq/fq/fastq.gz/fq.gz)' };
-        }
-        if (s.file.size <= 0) {
-          ok = false;
-          return { ...s, error: 'File is empty' };
+          return { ...s, error: 'Expected FASTQ / FASTQ.GZ' };
         }
         return { ...s, error: undefined };
       }),
     );
 
-    if (!drawDate) {
-      ok = false;
-      setGlobalError('Select plasma draw date first.');
-    }
-
-    if (!ok && !globalError) setGlobalError('Fix file errors first.');
+    if (!ok) setGlobalError('Fix file errors first.');
     return ok;
   }
 
   async function handleValidate() {
-    if (!patientId) return;
+    setGlobalError(null);
 
-    const r1 = slots.find(s => s.key === 'pR1')?.file;
-    const r2 = slots.find(s => s.key === 'pR2')?.file;
-
-    if (!drawDate || !r1 || !r2) {
-      setGlobalError('Select date and upload Plasma R1/R2 first.');
-      validateInputs();
-      return;
-    }
-
-    const ok = validateInputs();
+    const ok = validateFilesLocal();
     if (!ok) return;
 
     setValidating(true);
@@ -279,32 +230,43 @@ export function Step3() {
     setValidated(true);
   }
 
+  function hasDateAlready(date: string) {
+    return samples.some(s => (s.drawDate || '') === date);
+  }
+
   function handleAddTimepoint() {
     if (!patientId) return;
+
+    setGlobalError(null);
+
     if (!validated) {
       setGlobalError('Validate to enable Add.');
       return;
     }
 
-    const r1 = slots.find(s => s.key === 'pR1')?.file;
-    const r2 = slots.find(s => s.key === 'pR2')?.file;
-    if (!r1 || !r2 || !drawDate) return;
+    const r1 = slots.find(s => s.key === 'pR1')?.file ?? null;
+    const r2 = slots.find(s => s.key === 'pR2')?.file ?? null;
 
-    const stored = PatientsStore.findById(patientId);
-    const surgeryDateISO = stored?.surgeryDate;
-    const computed = computeRelation(drawDate, surgeryDateISO);
+    if (!r1 || !r2) {
+      setGlobalError('Upload R1 and R2.');
+      return;
+    }
 
-    const id =
-      typeof crypto !== 'undefined' && 'randomUUID' in crypto
-        ? `plasma_${crypto.randomUUID()}`
-        : `plasma_${drawDate}_${r1.name}_${r2.name}`;
+    if (!drawDate) {
+      setGlobalError('Please set draw date.');
+      return;
+    }
 
-    // key change: label is derived from draw date
-    const autoLabel = makeAutoLabel(drawDate, surgeryDateISO);
-    const finalLabel = customLabel?.trim() || autoLabel;
+    if (hasDateAlready(drawDate)) {
+      setGlobalError(`A timepoint for ${drawDate} already exists. Pick another date.`);
+      return;
+    }
+
+    const computed = computeRelationToSurgery(drawDate, surgeryDate);
+    const finalLabel = customLabel.trim() || computed.relation;
 
     const sample: PlasmaSample = {
-      id,
+      id: uid('tp'),
       drawDate,
       label: finalLabel,
       relationToSurgery: computed.relation,
@@ -319,10 +281,63 @@ export function Step3() {
       },
     };
 
-    const nextSamples = [...(stored?.plasmaSamples ?? []), sample];
-    upsertPatient({ plasmaSamples: nextSamples });
+    upsertSamples([...samples, sample]);
 
-    // reset draft for next timepoint
+    setDrawDate('');
+    setCustomLabel('');
+    setSlots(prev => prev.map(s => ({ ...s, file: null, error: undefined })));
+    setValidated(false);
+  }
+
+  function handleDeleteTimepoint(id: string) {
+    if (!patientId) return;
+    upsertSamples(samples.filter(s => s.id !== id));
+    setGlobalError(null);
+  }
+
+  function handleAdd3DemoTimepoints() {
+    if (!patientId) return;
+
+    const base = surgeryDate || toISODate(new Date());
+
+    const candidates: Array<{ date: string; label: string }> = [
+      { date: addDays(base, -10), label: 'Pre-op (day -10)' },
+      { date: addDays(base, 0), label: 'Op day' },
+      { date: addDays(base, 60), label: 'Post-op (day 60)' },
+    ];
+
+    const existingDates = new Set(samples.map(s => s.drawDate || ''));
+
+    const toAdd: PlasmaSample[] = [];
+    for (const c of candidates) {
+      if (existingDates.has(c.date)) continue;
+
+      const computed = computeRelationToSurgery(c.date, surgeryDate);
+
+      toAdd.push({
+        id: uid('demo'),
+        drawDate: c.date,
+        label: c.label,
+        relationToSurgery: computed.relation,
+        dayOffset: computed.dayOffset,
+        fastqValidated: true,
+        validationAt: new Date().toISOString(),
+        files: {
+          r1Name: 'demo_R1.fastq.gz',
+          r2Name: 'demo_R2.fastq.gz',
+          r1Size: 12_345_678,
+          r2Size: 12_789_012,
+        },
+      });
+    }
+
+    if (!toAdd.length) {
+      setGlobalError('Demo timepoints already exist for these dates.');
+      return;
+    }
+
+    upsertSamples([...samples, ...toAdd]);
+
     setDrawDate('');
     setCustomLabel('');
     setSlots(prev => prev.map(s => ({ ...s, file: null, error: undefined })));
@@ -339,27 +354,20 @@ export function Step3() {
     );
   }
 
-  const stored = PatientsStore.findById(patientId);
-  const patientLabel = state.selectedPatient?.label ?? patientId;
-
-  const modeValue = stored?.imprintCreated ? 'tumor-informed' : 'indication-guided';
-  const rel = drawDate ? computeRelation(drawDate, stored?.surgeryDate) : null;
-
-  const canValidate = !validating;
-  const canAdd = validated && !validating;
-
-  // what to show as the preview "Label"
-  const previewLabel = drawDate ? (customLabel?.trim() || makeAutoLabel(drawDate, stored?.surgeryDate)) : '—';
-
   return (
     <div className="space-y-5">
       <div className="text-lg font-semibold">Step 3 — Add plasma sample</div>
 
-      {/* key change: show surgery date next to the patient */}
-      <div className="text-sm text-slate-600">
-        Patient: <span className="font-medium text-slate-900">{patientLabel}</span>{' '}
-        <span className="text-slate-400">({patientId})</span>
-        <span className="text-slate-400"> • Surgery: {stored?.surgeryDate ?? '—'}</span>
+      <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-slate-600">
+        <div>
+          Patient: <span className="font-medium text-slate-900">{patientLabel}</span>{' '}
+          <span className="text-slate-400">({patientId})</span>
+        </div>
+
+        {/* ✅ Surgery date shown here */}
+        <div className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs text-slate-600">
+          Surgery date: <span className="font-semibold text-slate-900">{surgeryDate || '—'}</span>
+        </div>
       </div>
 
       <Card className="p-5">
@@ -369,115 +377,137 @@ export function Step3() {
           </div>
         ) : null}
 
-        <div className="grid grid-cols-12 gap-4">
-          <div className="col-span-12 md:col-span-6">
-            <div className="text-xs text-slate-500">Plasma draw date</div>
+        {/* ✅ Symmetric grid for top fields */}
+        <div className="grid gap-6 md:grid-cols-2">
+          <FieldBlock
+            title="Draw date"
+            description="Used to label pre/post-op (if surgery date exists)."
+          >
             <input
-              type="date"
               value={drawDate}
-              onChange={e => {
-                setDrawDate(e.target.value);
-                setValidated(false);
-                setGlobalError(null);
-              }}
-              className="mt-1 w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-slate-300"
+              onChange={e => setDrawDate(e.target.value)}
+              type="date"
+              className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900"
             />
-            <div className="mt-2 text-xs text-slate-500">
-              Label: <span className="font-medium text-slate-800">{previewLabel}</span>
-            </div>
-            {/* customLabel stays in state (may be useful later), but we do not add an input UI yet
-                to avoid changing the current UX without an explicit request */}
-          </div>
+          </FieldBlock>
 
-          <div className="col-span-12 md:col-span-6">
-            <div className="text-xs text-slate-500">Mode</div>
-            <div className="mt-1 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-medium text-slate-800">
-              {modeValue}
-            </div>
-            <div className="mt-2 text-xs text-slate-500">
-              Relation: <span className="font-medium text-slate-800">{rel?.relation ?? '—'}</span>
-            </div>
-          </div>
+          <FieldBlock
+            title="Custom label (optional)"
+            description="If empty, label is generated from surgery date."
+          >
+            <input
+              value={customLabel}
+              onChange={e => setCustomLabel(e.target.value)}
+              type="text"
+              placeholder="e.g. Pre-op, 1m, 3m"
+              className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900"
+            />
+          </FieldBlock>
+        </div>
 
-          <div className="col-span-12">
-            <div className="mt-1 rounded-2xl border border-slate-200 bg-white p-4">
-              <div className="grid grid-cols-12 gap-4">
-                {slots.map(s => {
-                  const validatedOk = validated && !!s.file && !s.error;
-                  return (
-                    <div key={s.key} className="col-span-12 md:col-span-6">
-                      <FileUploadRow
-                        title={s.title}
-                        file={s.file}
-                        error={s.error}
-                        disabled={validating}
-                        validating={validating}
-                        validatedOk={validatedOk}
-                        onPick={f => setSlotFile(s.key, f)}
-                        onClear={() => clearSlot(s.key)}
-                      />
-                    </div>
-                  );
-                })}
-              </div>
+        <div className="mt-6 grid gap-4 md:grid-cols-2">
+          <FileSlot
+            title={slots.find(s => s.key === 'pR1')?.title ?? 'Plasma R1'}
+            file={slots.find(s => s.key === 'pR1')?.file ?? null}
+            error={slots.find(s => s.key === 'pR1')?.error}
+            validating={validating}
+            onPick={f => setSlotFile('pR1', f)}
+            onClear={() => setSlotFile('pR1', null)}
+          />
+          <FileSlot
+            title={slots.find(s => s.key === 'pR2')?.title ?? 'Plasma R2'}
+            file={slots.find(s => s.key === 'pR2')?.file ?? null}
+            error={slots.find(s => s.key === 'pR2')?.error}
+            validating={validating}
+            onPick={f => setSlotFile('pR2', f)}
+            onClear={() => setSlotFile('pR2', null)}
+          />
+        </div>
 
-              <div className="mt-4 flex flex-wrap items-center gap-3">
-                <button
-                  type="button"
-                  disabled={!canValidate}
-                  onClick={handleValidate}
-                  className={[
-                    'inline-flex items-center gap-2 rounded-2xl border px-5 py-2 text-sm font-semibold',
-                    !canValidate
-                      ? 'border-slate-200 bg-slate-100 text-slate-400'
-                      : 'border-slate-200 bg-white text-slate-800 hover:bg-slate-50',
-                  ].join(' ')}
-                >
-                  {validating ? <Spinner /> : null}
-                  {validating ? 'Validating…' : 'Validate'}
-                </button>
+        <div className="mt-6 flex flex-wrap items-center gap-3">
+          <button
+            type="button"
+            disabled={validating}
+            onClick={handleValidate}
+            className="rounded-xl bg-sky-600 px-4 py-2 text-sm font-semibold text-white hover:bg-sky-700 disabled:opacity-60"
+          >
+            Validate
+          </button>
 
-                <button
-                  type="button"
-                  disabled={!canAdd}
-                  onClick={handleAddTimepoint}
-                  className={[
-                    'rounded-2xl border px-5 py-2 text-sm font-semibold',
-                    !canAdd
-                      ? 'border-slate-200 bg-slate-100 text-slate-400'
-                      : 'border-slate-200 bg-white text-slate-800 hover:bg-slate-50',
-                  ].join(' ')}
-                >
-                  Add timepoint
-                </button>
+          <button
+            type="button"
+            disabled={!validated || validating}
+            onClick={handleAddTimepoint}
+            className="rounded-xl bg-sky-600 px-4 py-2 text-sm font-semibold text-white hover:bg-sky-700 disabled:opacity-60"
+          >
+            Add timepoint
+          </button>
 
-                {!validated ? <div className="text-xs text-slate-500">Validate to enable Add.</div> : null}
-              </div>
-            </div>
+          <button
+            type="button"
+            onClick={handleAdd3DemoTimepoints}
+            className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+            title="Adds demo timepoints (skips duplicate dates)"
+          >
+            Add 3 timepoints (demo)
+          </button>
+
+          <div className="text-xs text-slate-500">
+            Current samples: <span className="font-semibold text-slate-900">{samples.length}</span>
           </div>
         </div>
       </Card>
 
       <Card className="p-5">
-        <div className="text-sm font-semibold text-slate-900">Timepoints</div>
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <div className="text-sm font-semibold text-slate-900">Saved plasma timepoints</div>
+            <div className="mt-1 text-xs text-slate-500">Stored locally per patient (demo).</div>
+          </div>
+          <div className="text-xs text-slate-600">{samples.length ? `${samples.length} items` : 'No samples'}</div>
+        </div>
 
-        {stored?.plasmaSamples?.length ? (
-          <div className="mt-3 grid grid-cols-12 gap-3">
-            {stored.plasmaSamples.map(s => (
-              <div key={s.id} className="col-span-12 md:col-span-4">
-                <div className="rounded-2xl border border-slate-200 bg-white p-4">
-                  <div className="text-xs text-slate-500">{s.drawDate}</div>
-                  <div className="mt-1 text-sm font-semibold text-slate-900">{s.label}</div>
-                  <div className="mt-2 text-xs text-slate-600">
-                    {(s.files?.r1Name ?? 'R1')} / {(s.files?.r2Name ?? 'R2')}
+        {samples.length ? (
+          <div className="mt-4 space-y-2">
+            {samples
+              .slice()
+              .sort((a, b) => (a.drawDate || '').localeCompare(b.drawDate || ''))
+              .map(s => (
+                <div key={s.id} className="rounded-xl border border-slate-200 bg-white px-4 py-3">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                      <div className="text-sm font-semibold text-slate-900">{s.label || 'Plasma'}</div>
+                      <div className="mt-1 text-xs text-slate-500">
+                        Date: <span className="text-slate-700">{s.drawDate || '—'}</span>
+                        {s.relationToSurgery ? (
+                          <>
+                            {' '}
+                            • <span className="text-slate-700">{s.relationToSurgery}</span>
+                          </>
+                        ) : null}
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-3">
+                      <div className="text-xs text-slate-500">
+                        {s.fastqValidated ? <span className="font-semibold text-emerald-700">✓ Validated</span> : '—'}
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteTimepoint(s.id)}
+                        className="rounded-xl border border-red-200 bg-white px-3 py-2 text-xs font-semibold text-red-600 hover:bg-red-50"
+                        title="Delete this timepoint"
+                      >
+                        Delete
+                      </button>
+                    </div>
                   </div>
-                  <div className="mt-2 text-xs text-emerald-700">✓ Added</div>
                 </div>
-              </div>
-            ))}
+              ))}
           </div>
         ) : (
-          <div className="mt-2 text-sm text-slate-600">No plasma timepoints added yet.</div>
+          <div className="mt-4 text-sm text-slate-500">No plasma samples added yet.</div>
         )}
       </Card>
     </div>

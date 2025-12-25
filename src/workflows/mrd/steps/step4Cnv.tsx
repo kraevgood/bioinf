@@ -20,6 +20,10 @@ function ProgressBar({ running }: { running: boolean }) {
   );
 }
 
+/**
+ * Step 4 substep: CNV
+ * Task: remove duplicated headers (tree already shows step title).
+ */
 export function Step4Cnv() {
   const { state, activeStepId, setActiveStepId } = useWorkflow();
 
@@ -59,7 +63,7 @@ export function Step4Cnv() {
 
     const st = p.analysisChannels?.CNV ?? 'idle';
 
-    // if already done — return to Step 4
+    // If already done -> return to Step 4
     if (st === 'done') {
       const t = setTimeout(() => setActiveStepId('step4'), 800);
       return () => clearTimeout(t);
@@ -94,7 +98,7 @@ export function Step4Cnv() {
   if (!patientId) {
     return (
       <div className="space-y-2">
-        <div className="text-lg font-semibold">Step 4 — CNV channel</div>
+        <div className="text-lg font-semibold">CNV channel</div>
         <div className="text-sm text-slate-600">Select a patient in Step 1 first.</div>
       </div>
     );
@@ -104,20 +108,28 @@ export function Step4Cnv() {
   const st = p?.analysisChannels?.CNV ?? 'idle';
 
   return (
-    <div className="space-y-5">
-      <div>
-        <div className="text-lg font-semibold">CNV channel</div>
-        <div className="mt-1 text-sm text-slate-600">Read-depth + BAF + fragmentomics (demo)</div>
+    <div className="space-y-4">
+      {/* ✅ Removed duplicated big header.
+          The tree already shows: "CNV channel". */}
+      <div className="text-sm text-slate-600">
+        Patient: <span className="font-medium text-slate-900">{patientLabel}</span>{' '}
+        <span className="text-slate-400">({patientId})</span>
       </div>
 
       <Card className="p-5">
         <div className="flex items-start justify-between gap-3">
           <div>
             <div className="text-sm font-semibold text-slate-900">AI-denoise + CNV segmentation</div>
-            <div className="mt-1 text-xs text-slate-500">Demo: progress → ✓ → return to Step 4.</div>
+            <div className="mt-1 text-xs text-slate-500">Demo: progress → ✓ → returns to Step 4.</div>
           </div>
           <div className="text-xs text-slate-600">
-            {st === 'done' ? <span className="font-semibold text-emerald-700">✓ Done</span> : st === 'running' ? 'Running…' : 'Idle'}
+            {st === 'done' ? (
+              <span className="font-semibold text-emerald-700">✓ Done</span>
+            ) : st === 'running' ? (
+              'Running…'
+            ) : (
+              'Idle'
+            )}
           </div>
         </div>
 
