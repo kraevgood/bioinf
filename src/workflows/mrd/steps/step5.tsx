@@ -1,5 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
-
 'use client';
 
 import React from 'react';
@@ -7,6 +5,25 @@ import { Card } from '@/components/ui/Card';
 import { Pill } from '@/components/ui/Pill';
 import { useWorkflow } from '@/components/workflow/WorkflowContext';
 import { PatientsStore } from '@/store/patientsStore';
+
+type PlasmaSampleLite = {
+  id?: string;
+  drawDate?: string; // YYYY-MM-DD
+  label?: string;
+  tumorFractionPct?: number; // optional explicit TF (percent)
+};
+
+type StoredPatientLite = {
+  id: string;
+  label?: string;
+  plasmaSamples?: PlasmaSampleLite[];
+  imprintCreated?: boolean;
+  analysisCompleted?: boolean;
+  surgeryDate?: string;
+  analysisConfig?: {
+    thresholdPct?: number; // percent (0.02 means 0.02%)
+  };
+};
 
 type Point = { x: number; y: number; label: string; date: string; t: number };
 
@@ -32,40 +49,88 @@ function fmtPct(n: number) {
 }
 
 function parseDate(d: string): number {
+  // expects YYYY-MM-DD; Date.parse works OK here
   const t = Date.parse(d);
   return Number.isFinite(t) ? t : NaN;
 }
 
-function buildSeries(patientId: string, stored: any): Point[] {
-  const samples: any[] = Array.isArray(stored?.plasmaSamples) ? stored.plasmaSamples : [];
+/**
+ * DEMO SERIES (Responder by default)
+ * Goal: in demo, the curve should almost always go below threshold after surgery.
+ */
+function buildSeries(patientId: string, stored: StoredPatientLite | undefined, thresholdPct: number): Point[] {
+  const samples: PlasmaSampleLite[] = Array.isArray(stored?.plasmaSamples) ? stored!.plasmaSamples! : [];
   if (!samples.length) return [];
 
-  const sorted = [...samples].sort((a, b) => (parseDate(a.drawDate) || 0) - (parseDate(b.drawDate) || 0));
+  const sorted = [...samples].sort((a, b) => (parseDate(a.drawDate ?? '') || 0) - (parseDate(b.drawDate ?? '') || 0));
 
-  // demo trend logic
-  const analysisCompleted = !!stored?.analysisCompleted;
-  const imprint = !!stored?.imprintCreated;
+  const tSurg = stored?.surgeryDate ? parseDate(stored.surgeryDate) : NaN;
+  const hasSurgery = Number.isFinite(tSurg);
 
-  let prev = 0;
+  const thr = clamp(thresholdPct, 0.001, 0.2); // percent units
+  const targetLow = clamp(thr * 0.65, 0.001, 0.2); // below threshold
+
+  // Pre-op baseline typically above threshold
+  const preHigh = clamp(Math.max(thr * 2.2, 0.035), 0.01, 0.12);
+
+  const jitter = (key: string) => {
+    const u = hashToUnit(`${patientId}:${key}`);
+    return (u - 0.5) * 0.002; // +/-0.001%
+  };
+
+  const preIdxs: number[] = [];
+  const postIdxs: number[] = [];
+
+  sorted.forEach((s, i) => {
+    const t = parseDate(String(s.drawDate ?? ''));
+    if (hasSurgery && Number.isFinite(t)) {
+      if (t < (tSurg as number)) preIdxs.push(i);
+      else postIdxs.push(i);
+    }
+  });
+
+  const firstPostIdx = postIdxs.length ? postIdxs[0] : 0;
 
   return sorted.map((s, i) => {
-    const explicit = (s as any).tumorFractionPct;
+    const date = String(s.drawDate ?? '');
+    const t = parseDate(date);
+
+    const explicit = s.tumorFractionPct;
     let tf = typeof explicit === 'number' ? explicit : NaN;
 
     if (!Number.isFinite(tf)) {
-      const u = hashToUnit(`${patientId}:${s.id}:${s.drawDate}`);
-      const base = imprint ? 0.03 : 0.06; // percent
-      const noise = (u - 0.5) * (analysisCompleted ? 0.01 : 0.03);
-      const trend = analysisCompleted ? -0.01 * i : -0.003 * i;
-      tf = clamp(base + noise + trend, 0.001, 0.12);
+      if (!hasSurgery || !Number.isFinite(t)) {
+        // Fallback: gentle monotonic decrease, ending below threshold
+        const n = sorted.length;
+        const start = preHigh;
+        const end = targetLow;
+        const u = n <= 1 ? 1 : i / (n - 1);
+        tf = start + (end - start) * u + jitter(`${s.id ?? i}:${date}`);
+        tf = clamp(tf, 0.001, 0.12);
+      } else if (t < (tSurg as number)) {
+        // Pre-op: above threshold, drifting down towards surgery
+        const nPre = Math.max(1, preIdxs.length);
+        const j = Math.max(0, preIdxs.indexOf(i));
+        const u = nPre <= 1 ? 1 : j / (nPre - 1);
 
-      if (i > 0) tf = clamp(prev * 0.65 + tf * 0.35, 0.001, 0.12);
+        const near = clamp(Math.max(thr * 1.3, thr + 0.01), 0.01, 0.12);
+        tf = preHigh + (near - preHigh) * u + jitter(`${s.id ?? i}:${date}`);
+        tf = clamp(tf, 0.001, 0.12);
+      } else {
+        // Post-op (including day-of): exponential decay to below threshold
+        const k = Math.max(0, i - firstPostIdx);
+        const startPost = clamp(Math.max(thr * 1.1, thr + 0.005), 0.008, 0.12);
+        const decay = 0.55;
+
+        tf = targetLow + (startPost - targetLow) * Math.pow(decay, k) + jitter(`${s.id ?? i}:${date}`);
+
+        // HARD GUARANTEE: after surgery day (k>=1) => always below threshold
+        if (k >= 1) tf = Math.min(tf, thr * 0.92);
+        else tf = Math.min(tf, thr * 1.05);
+
+        tf = clamp(tf, 0.001, 0.12);
+      }
     }
-
-    prev = tf;
-
-    const date = String(s.drawDate ?? '');
-    const t = parseDate(date);
 
     return {
       x: i,
@@ -107,7 +172,6 @@ function catmullRomToBezierPath(pts: { x: number; y: number }[]) {
 }
 
 function makeYTicks(minY: number, maxY: number) {
-  // 4 ticks is enough (including min/max)
   const ticks: number[] = [];
   const steps = 3;
   for (let i = 0; i <= steps; i++) {
@@ -137,21 +201,19 @@ function TimelinePlot({
   // ---- COLORS (only blues inside the chart) ----
   const BLUE_LINE = '#0ea5e9'; // sky-500
   const BLUE_TEXT = '#0284c7'; // sky-600
-  const BLUE_FAINT = '#0ea5e9'; // same, but via opacity
+  const BLUE_FAINT = '#0ea5e9';
   const AXIS = '#e2e8f0';
-  const LABEL = '#94a3b8'; // gray labels OK
+  const LABEL = '#94a3b8';
 
   const W = 760;
   const H = 240;
 
-  // extra space on the left for Y labels
   const padL = 54;
   const padR = 24;
-  const padT = 22;
+  const padT = 30; // extra so SURGERY label never clips
   const padB = 28;
 
-  // ---- X scale by date, IMPORTANT: include surgery date in domain ----
-  const tsPoints = points.map(p => p.t).filter(t => Number.isFinite(t)) as number[];
+  const tsPoints = points.map((p) => p.t).filter((t) => Number.isFinite(t)) as number[];
   const tSurg = surgeryDate ? parseDate(surgeryDate) : NaN;
 
   const domainTs = [...tsPoints];
@@ -168,18 +230,17 @@ function TimelinePlot({
     return padL + u * (W - padL - padR);
   };
 
-  // ---- Y scale (include threshold in domain) ----
-  const ys = points.map(p => p.y);
+  const ys = points.map((p) => p.y);
   const minY = Math.min(...ys, threshold);
   const maxY = Math.max(...ys, threshold);
   const spanY = Math.max(0.001, maxY - minY);
 
   const sy = (v: number) => {
     const u = (v - minY) / spanY;
-    return (H - padB) - u * (H - padT - padB);
+    return H - padB - u * (H - padT - padB);
   };
 
-  const pxPts = points.map(p => ({ x: sx(p.t), y: sy(p.y) }));
+  const pxPts = points.map((p) => ({ x: sx(p.t), y: sy(p.y) }));
   const dCurve = catmullRomToBezierPath(pxPts);
 
   const yThr = sy(threshold);
@@ -187,7 +248,6 @@ function TimelinePlot({
   const hasSurgery = Number.isFinite(tSurg);
   const xSurg = hasSurgery ? sx(tSurg) : NaN;
 
-  // Area between curve and threshold
   const areaPath = (() => {
     if (pxPts.length < 2) {
       const x = pxPts[0]?.x ?? padL;
@@ -199,37 +259,27 @@ function TimelinePlot({
     return `${dCurve} L ${last.x.toFixed(2)} ${yThr.toFixed(2)} L ${first.x.toFixed(2)} ${yThr.toFixed(2)} Z`;
   })();
 
-  // Y ticks (include threshold visually by drawing it; ticks are generic)
   const ticks = makeYTicks(minY, maxY);
-
   const gradId = 'tfBlueGrad';
 
   return (
     <div className="rounded-2xl border border-slate-200 bg-white p-4">
       <svg viewBox={`0 0 ${W} ${H}`} className="h-60 w-full">
         <defs>
-          {/* Light blue gradient: darker near curve -> lighter towards threshold */}
           <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
             <stop offset="0%" stopColor={BLUE_FAINT} stopOpacity="0.18" />
             <stop offset="100%" stopColor={BLUE_FAINT} stopOpacity="0.03" />
           </linearGradient>
         </defs>
 
-        {/* Axes */}
-        <path
-          d={`M ${padL} ${padT} L ${padL} ${H - padB} L ${W - padR} ${H - padB}`}
-          fill="none"
-          stroke={AXIS}
-        />
+        <path d={`M ${padL} ${padT} L ${padL} ${H - padB} L ${W - padR} ${H - padB}`} fill="none" stroke={AXIS} />
 
-        {/* Y ticks + labels */}
         {ticks.map((v, i) => {
           const y = sy(v);
           const isEdge = i === 0 || i === ticks.length - 1;
           return (
             <g key={`yt_${i}`}>
               <line x1={padL - 6} y1={y} x2={padL} y2={y} stroke={AXIS} />
-              {/* optional faint grid */}
               <line x1={padL} y1={y} x2={W - padR} y2={y} stroke={AXIS} opacity={isEdge ? 0.35 : 0.15} />
               <text x={padL - 10} y={y + 4} textAnchor="end" fontSize="10" fill={LABEL}>
                 {fmtPct(v)}
@@ -238,57 +288,33 @@ function TimelinePlot({
           );
         })}
 
-        {/* Threshold line + label */}
-        <line
-          x1={padL}
-          y1={yThr}
-          x2={W - padR}
-          y2={yThr}
-          stroke={BLUE_LINE}
-          strokeDasharray="6 5"
-          opacity={0.55}
-        />
+        <line x1={padL} y1={yThr} x2={W - padR} y2={yThr} stroke={BLUE_LINE} strokeDasharray="6 5" opacity={0.55} />
         <text x={W - padR} y={yThr - 8} textAnchor="end" fontSize="11" fill={LABEL}>
-          Threshold
+          Threshold {fmtPct(threshold)}
         </text>
 
-        {/* Surgery vertical dashed line in correct X position */}
         {hasSurgery ? (
           <>
-            <line
-              x1={xSurg}
-              y1={padT}
-              x2={xSurg}
-              y2={H - padB}
-              stroke={BLUE_LINE}
-              strokeDasharray="4 4"
-              opacity={0.9}
-            />
-            <text x={xSurg} y={padT - 6} textAnchor="middle" fontSize="11" fill={BLUE_TEXT}>
+            <line x1={xSurg} y1={padT} x2={xSurg} y2={H - padB} stroke={BLUE_LINE} strokeDasharray="4 4" opacity={0.9} />
+            <text x={xSurg} y={padT - 10} textAnchor="middle" fontSize="11" fill={BLUE_TEXT}>
               SURGERY
             </text>
           </>
         ) : null}
 
-        {/* Area */}
         <path d={areaPath} fill={`url(#${gradId})`} />
-
-        {/* Curved line (blue) */}
         <path d={dCurve} fill="none" stroke={BLUE_LINE} strokeWidth="2.4" />
 
-        {/* Points */}
         {points.map((p, i) => (
-          <g key={`${p.label}_${i}`}>
+          <g key={`${p.date}_${i}`}>
             <circle cx={sx(p.t)} cy={sy(p.y)} r={4} fill="#ffffff" stroke={BLUE_LINE} strokeWidth="2" />
           </g>
         ))}
 
-        {/* X labels (dates) - gray */}
         {(() => {
           const idxToShow = new Set<number>();
-          if (points.length <= 4) {
-            points.forEach((_, i) => idxToShow.add(i));
-          } else {
+          if (points.length <= 4) points.forEach((_, i) => idxToShow.add(i));
+          else {
             idxToShow.add(0);
             idxToShow.add(points.length - 1);
             idxToShow.add(Math.floor(points.length / 2));
@@ -312,17 +338,31 @@ function TimelinePlot({
 
 function StatusModal({ open, onClose }: { open: boolean; onClose: () => void }) {
   const [q, setQ] = React.useState('');
-  const patients = React.useMemo(() => PatientsStore.list(), []);
+
+  const patients: StoredPatientLite[] = React.useMemo(() => {
+    if (!open) return [];
+    return (PatientsStore.list() as unknown as StoredPatientLite[]) ?? [];
+  }, [open]);
 
   const rows = React.useMemo(() => {
-    const out: any[] = [];
-    for (const p of patients as any[]) {
-      const samples: any[] = Array.isArray(p.plasmaSamples) ? p.plasmaSamples : [];
+    const out: Array<{
+      patientId: string;
+      patientLabel: string;
+      sampleId: string;
+      sampleLabel: string;
+      drawDate: string;
+      tf: number;
+      imprint: boolean;
+    }> = [];
+
+    for (const p of patients) {
+      const samples = Array.isArray(p.plasmaSamples) ? p.plasmaSamples : [];
+      const thr = typeof p.analysisConfig?.thresholdPct === 'number' ? p.analysisConfig.thresholdPct : 0.02;
 
       if (!samples.length) {
         out.push({
           patientId: p.id,
-          patientLabel: p.label,
+          patientLabel: p.label || p.id,
           sampleId: '',
           sampleLabel: '—',
           drawDate: '—',
@@ -332,13 +372,13 @@ function StatusModal({ open, onClose }: { open: boolean; onClose: () => void }) 
         continue;
       }
 
-      const series = buildSeries(p.id, p);
+      const series = buildSeries(p.id, p, thr);
       samples.forEach((s, i) => {
         out.push({
           patientId: p.id,
-          patientLabel: p.label,
-          sampleId: s.id,
-          sampleLabel: s.label ?? `Sample ${i + 1}`,
+          patientLabel: p.label || p.id,
+          sampleId: s.id ?? '',
+          sampleLabel: s.label ?? `Plasma ${i + 1}`,
           drawDate: s.drawDate ?? '—',
           tf: series[i]?.y ?? NaN,
           imprint: !!p.imprintCreated,
@@ -347,7 +387,7 @@ function StatusModal({ open, onClose }: { open: boolean; onClose: () => void }) 
     }
 
     const qq = q.trim().toLowerCase();
-    return out.filter(r => {
+    return out.filter((r) => {
       if (!qq) return true;
       return (
         String(r.patientId).toLowerCase().includes(qq) ||
@@ -383,7 +423,7 @@ function StatusModal({ open, onClose }: { open: boolean; onClose: () => void }) 
           <div className="flex flex-wrap items-center justify-between gap-3">
             <input
               value={q}
-              onChange={e => setQ(e.target.value)}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setQ(e.target.value)}
               placeholder="Search patient / sample…"
               className="w-full max-w-md rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-slate-300"
             />
@@ -391,7 +431,7 @@ function StatusModal({ open, onClose }: { open: boolean; onClose: () => void }) 
           </div>
 
           <div className="mt-4 overflow-auto rounded-2xl border border-slate-200">
-            <table className="min-w-245 w-full text-left text-sm">
+            <table className="min-w-61.25 w-full text-left text-sm">
               <thead className="bg-slate-50 text-xs text-slate-600">
                 <tr>
                   <th className="px-4 py-3">Patient</th>
@@ -405,7 +445,7 @@ function StatusModal({ open, onClose }: { open: boolean; onClose: () => void }) 
                 {rows.map((r, idx) => (
                   <tr key={`${r.patientId}_${r.sampleId}_${idx}`} className={idx % 2 ? 'bg-white' : 'bg-slate-50/30'}>
                     <td className="px-4 py-3">
-                      <div className="font-medium text-slate-900">{r.patientLabel || r.patientId}</div>
+                      <div className="font-medium text-slate-900">{r.patientLabel}</div>
                       <div className="text-xs text-slate-500">{r.patientId}</div>
                     </td>
                     <td className="px-4 py-3">
@@ -423,9 +463,7 @@ function StatusModal({ open, onClose }: { open: boolean; onClose: () => void }) 
             </table>
           </div>
 
-          <div className="mt-3 text-xs text-slate-500">
-            Note: tumor fraction values are demo-generated on the frontend for now.
-          </div>
+          <div className="mt-3 text-xs text-slate-500">Note: tumor fraction values are demo-generated on the frontend for now.</div>
         </div>
       </div>
     </div>
@@ -438,9 +476,6 @@ export function Step5() {
 
   const [open, setOpen] = React.useState(false);
 
-  // percent, e.g. 0.02 means 0.02%
-  const [threshold, setThreshold] = React.useState(0.02);
-
   if (!patientId) {
     return (
       <div className="space-y-2">
@@ -450,10 +485,13 @@ export function Step5() {
     );
   }
 
-  const stored: any = PatientsStore.findById(patientId);
+  const stored = PatientsStore.findById(patientId) as unknown as StoredPatientLite | undefined;
   const patientLabel = state.selectedPatient?.label ?? patientId;
 
-  const points = buildSeries(patientId, stored);
+  // ✅ Threshold comes from Step 4 config (locked in Step 5)
+  const threshold = stored?.analysisConfig?.thresholdPct ?? 0.02;
+
+  const points = buildSeries(patientId, stored, threshold);
   const last = points.length ? points[points.length - 1].y : NaN;
 
   const below = Number.isFinite(last) ? last < threshold : false;
@@ -467,8 +505,8 @@ export function Step5() {
 
   const imprintMode = stored?.imprintCreated ? 'tumor-informed' : 'indication-guided (ImprintAI+)';
 
-  const minY = points.length ? Math.min(...points.map(p => p.y)) : NaN;
-  const maxY = points.length ? Math.max(...points.map(p => p.y)) : NaN;
+  const minY = points.length ? Math.min(...points.map((p) => p.y)) : NaN;
+  const maxY = points.length ? Math.max(...points.map((p) => p.y)) : NaN;
 
   const surgeryDate: string | undefined = stored?.surgeryDate || state.surgeryDate || undefined;
 
@@ -504,15 +542,6 @@ export function Step5() {
             <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
               <div className="text-xs text-slate-500">Threshold</div>
               <div className="mt-1 text-sm font-semibold text-slate-900">{fmtPct(threshold)}</div>
-              <div className="mt-2">
-                <input
-                  type="number"
-                  step="0.001"
-                  value={threshold}
-                  onChange={e => setThreshold(Number(e.target.value || 0))}
-                  className="w-28 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-slate-300"
-                />
-              </div>
             </div>
 
             <div className="min-w-60">
@@ -540,7 +569,7 @@ export function Step5() {
           {points.length ? (
             <div className="mt-4 grid grid-cols-12 gap-3">
               {points.map((p, i) => (
-                <div key={p.label + i} className="col-span-12 sm:col-span-6 lg:col-span-3">
+                <div key={`${p.date}_${i}`} className="col-span-12 sm:col-span-6 lg:col-span-3">
                   <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
                     <div className="text-xs font-semibold text-slate-800">{p.label}</div>
                     <div className="mt-1 text-xs text-slate-500">{p.date || '—'}</div>
@@ -551,10 +580,6 @@ export function Step5() {
             </div>
           ) : null}
         </Card>
-      </div>
-
-      <div className="text-xs text-slate-500">
-        Demo note: timeline and tumor fraction values are generated deterministically on the frontend for now.
       </div>
 
       <StatusModal open={open} onClose={() => setOpen(false)} />

@@ -22,7 +22,7 @@ function ProgressBar({ running }: { running: boolean }) {
 
 /**
  * Step 4 substep: CNV
- * Task: remove duplicated headers (tree already shows step title).
+ * IMPORTANT: if already done (green) -> no auto-jump
  */
 export function Step4Cnv() {
   const { state, activeStepId, setActiveStepId } = useWorkflow();
@@ -63,11 +63,8 @@ export function Step4Cnv() {
 
     const st = p.analysisChannels?.CNV ?? 'idle';
 
-    // If already done -> return to Step 4
-    if (st === 'done') {
-      const t = setTimeout(() => setActiveStepId('step4'), 800);
-      return () => clearTimeout(t);
-    }
+    // ✅ ключевое: если уже done — НЕ делаем авто-переход
+    if (st === 'done') return;
 
     upsertPatient({
       analysisChannels: {
@@ -109,8 +106,6 @@ export function Step4Cnv() {
 
   return (
     <div className="space-y-4">
-      {/* ✅ Removed duplicated big header.
-          The tree already shows: "CNV channel". */}
       <div className="text-sm text-slate-600">
         Patient: <span className="font-medium text-slate-900">{patientLabel}</span>{' '}
         <span className="text-slate-400">({patientId})</span>
@@ -134,7 +129,6 @@ export function Step4Cnv() {
         </div>
 
         <ProgressBar running={st === 'running'} />
-
         {st === 'done' ? <div className="mt-4 text-xs text-emerald-700">✓ CNV channel completed</div> : null}
       </Card>
 

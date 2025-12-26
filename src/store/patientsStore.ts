@@ -9,6 +9,14 @@ export type ImprintModuleState = "idle" | "running" | "done";
 export type AnalysisChannelKey = "SNV" | "CNV";
 export type AnalysisChannelState = "idle" | "running" | "done";
 
+// ✅ NEW: Step4 configuration (demo)
+export type AnalysisConfig = {
+  mode: "auto" | "manual";
+  thresholdPct: number; // e.g. 0.03 means 0.03%
+  channels: Record<AnalysisChannelKey, boolean>;
+  pon: string; // demo selector
+};
+
 // Step3/4 data model (lightweight demo)
 export type PlasmaSample = {
   id: string;
@@ -36,22 +44,23 @@ export type StoredPatient = Patient & {
   plasmaSamples?: PlasmaSample[];
 
   // Step2
-  tumorAvailable?: boolean; // tumor available checkbox
-  imprintSkipped?: boolean; // when tumor is unavailable
-  imprintSkipReason?: "no_tumor"; // skip reason
+  tumorAvailable?: boolean; // чекбокс tumor available
+  imprintSkipped?: boolean; // если tumor unavailable
+  imprintSkipReason?: "no_tumor"; // причина skip
 
   // Validate / Next gating (Step2)
-  imprintValidated?: boolean; // Validate clicked and succeeded
+  imprintValidated?: boolean; // нажали Validate и успешно прошло
   imprintValidationAt?: string; // ISO timestamp
-  imprintRunStarted?: boolean; // Next clicked and LOH→CNV→SNV started
+  imprintRunStarted?: boolean; // нажали Next и стартанули LOH→CNV→SNV
 
   // Step2 state
-  imprintInputsReady?: boolean; // files uploaded + validated (demo logic)
+  imprintInputsReady?: boolean; // файлы загружены+валидированы (демо-логика)
   imprintModules?: Record<ImprintModuleKey, ImprintModuleState>;
   imprintCreated?: boolean;
   imprintCreatedAt?: string; // ISO
 
   // Step4
+  analysisConfig?: AnalysisConfig; // ✅ NEW
   analysisRunStarted?: boolean;
   analysisRunAt?: string; // ISO
   analysisChannels?: Record<AnalysisChannelKey, AnalysisChannelState>;

@@ -1,12 +1,12 @@
-'use client';
+"use client";
 
-import React from 'react';
-import { Card } from '@/components/ui/Card';
-import { useWorkflow } from '@/components/workflow/WorkflowContext';
-import { PatientsStore } from '@/store/patientsStore';
-import type { ImprintModuleKey } from '@/store/patientsStore';
+import React from "react";
+import { Card } from "@/components/ui/Card";
+import { useWorkflow } from "@/components/workflow/WorkflowContext";
+import { PatientsStore } from "@/store/patientsStore";
+import type { ImprintModuleKey } from "@/store/patientsStore";
 
-type FileSlotKey = 'nR1' | 'nR2' | 'tR1' | 'tR2';
+type FileSlotKey = "nR1" | "nR2" | "tR1" | "tR2";
 
 type Slot = {
   key: FileSlotKey;
@@ -37,22 +37,36 @@ function FileSlot({
 }) {
   const inputRef = React.useRef<HTMLInputElement | null>(null);
 
-  const border = error ? 'border-red-200' : validatedOk ? 'border-emerald-200' : 'border-slate-200';
-  const bg = error ? 'bg-red-50' : validatedOk ? 'bg-emerald-50' : 'bg-white';
+  const border = error
+    ? "border-red-200"
+    : validatedOk
+    ? "border-emerald-200"
+    : "border-slate-200";
+  const bg = error ? "bg-red-50" : validatedOk ? "bg-emerald-50" : "bg-white";
 
   return (
     <div className="space-y-1">
       <div className="text-xs text-slate-500">{title}</div>
 
-      <div className={['rounded-2xl border px-4 py-3', border, bg].join(' ')}>
+      <div className={["rounded-2xl border px-4 py-3", border, bg].join(" ")}>
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
-            <div className="truncate text-sm font-medium text-slate-900">{file ? file.name : 'No file selected'}</div>
-            <div className="mt-1 text-xs text-slate-500">
-              {file ? `${Math.round(file.size / 1024)} KB` : 'Pick a FASTQ(.gz) file.'}
+            <div className="truncate text-sm font-medium text-slate-900">
+              {file ? file.name : "No file selected"}
             </div>
-            {error ? <div className="mt-1 text-xs font-medium text-red-700">{error}</div> : null}
-            {!error && validating ? <div className="mt-1 text-xs text-slate-500">Validating…</div> : null}
+            <div className="mt-1 text-xs text-slate-500">
+              {file
+                ? `${Math.round(file.size / 1024)} KB`
+                : "Pick a FASTQ(.gz) file."}
+            </div>
+            {error ? (
+              <div className="mt-1 text-xs font-medium text-red-700">
+                {error}
+              </div>
+            ) : null}
+            {!error && validating ? (
+              <div className="mt-1 text-xs text-slate-500">Validating…</div>
+            ) : null}
           </div>
 
           <div className="flex shrink-0 items-center gap-2">
@@ -60,7 +74,7 @@ function FileSlot({
               ref={inputRef}
               type="file"
               className="hidden"
-              onChange={e => {
+              onChange={(e) => {
                 const f = e.target.files?.[0] ?? null;
                 onPick(f);
               }}
@@ -78,7 +92,7 @@ function FileSlot({
               disabled={validating || !file}
               onClick={() => {
                 onClear();
-                if (inputRef.current) inputRef.current.value = '';
+                if (inputRef.current) inputRef.current.value = "";
               }}
               className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50 disabled:opacity-60"
             >
@@ -110,7 +124,13 @@ function ScanCard({
           <div className="mt-1 text-xs text-slate-500">{subtitle}</div>
         </div>
         <div className="text-xs text-slate-600">
-          {done ? <span className="font-semibold text-emerald-700">✓ Done</span> : running ? 'Scanning…' : 'Idle'}
+          {done ? (
+            <span className="font-semibold text-emerald-700">✓ Done</span>
+          ) : running ? (
+            "Scanning…"
+          ) : (
+            "Idle"
+          )}
         </div>
       </div>
 
@@ -119,7 +139,9 @@ function ScanCard({
           <div className="h-2 w-full overflow-hidden rounded-full bg-slate-100">
             <div className="h-full w-2/3 rounded-full bg-sky-500" />
           </div>
-          <div className="mt-2 text-[11px] text-slate-500">Demo run (mock processing)…</div>
+          <div className="mt-2 text-[11px] text-slate-500">
+            Demo run (mock processing)…
+          </div>
         </div>
       ) : null}
     </div>
@@ -138,18 +160,18 @@ export function Step2() {
   const patientId = state.selectedPatient?.id ?? null;
   const patientLabel = state.selectedPatient?.label ?? patientId;
 
-  const isMain = activeStepId === 'step2';
-  const isLoh = activeStepId === 'step2_loh';
-  const isCnv = activeStepId === 'step2_cnv';
-  const isSnv = activeStepId === 'step2_snv';
+  const isMain = activeStepId === "step2";
+  const isLoh = activeStepId === "step2_loh";
+  const isCnv = activeStepId === "step2_cnv";
+  const isSnv = activeStepId === "step2_snv";
 
   const [tumorAvailable, setTumorAvailable] = React.useState(true);
 
   const [slots, setSlots] = React.useState<Slot[]>([
-    { key: 'nR1', title: 'Normal FASTQ — R1', file: null },
-    { key: 'nR2', title: 'Normal FASTQ — R2', file: null },
-    { key: 'tR1', title: 'Tumor FASTQ — R1', file: null },
-    { key: 'tR2', title: 'Tumor FASTQ — R2', file: null },
+    { key: "nR1", title: "Normal FASTQ — R1", file: null },
+    { key: "nR2", title: "Normal FASTQ — R2", file: null },
+    { key: "tR1", title: "Tumor FASTQ — R1", file: null },
+    { key: "tR2", title: "Tumor FASTQ — R2", file: null },
   ]);
 
   const [busy, setBusy] = React.useState(false);
@@ -164,50 +186,56 @@ export function Step2() {
 
   function upsertPatient(patch: Record<string, unknown>) {
     if (!patientId) return;
-    PatientsStore.upsert({ id: patientId, label: patientLabel ?? patientId, ...patch });
+    PatientsStore.upsert({
+      id: patientId,
+      label: patientLabel ?? patientId,
+      ...patch,
+    });
   }
 
   function setSlotFile(key: FileSlotKey, file: File | null) {
-    setSlots(prev => prev.map(s => (s.key === key ? { ...s, file, error: undefined } : s)));
+    setSlots((prev) =>
+      prev.map((s) => (s.key === key ? { ...s, file, error: undefined } : s))
+    );
   }
 
   function validateAll(): boolean {
     let ok = true;
 
-    setSlots(prev =>
-      prev.map(s => {
-        if (s.key === 'tR1' || s.key === 'tR2') {
+    setSlots((prev) =>
+      prev.map((s) => {
+        if (s.key === "tR1" || s.key === "tR2") {
           if (!tumorAvailable) return { ...s, error: undefined };
         }
 
         if (!s.file) {
           ok = false;
-          return { ...s, error: 'Missing file' };
+          return { ...s, error: "Missing file" };
         }
 
         const name = s.file.name.toLowerCase();
-        if (!name.includes('fastq')) {
+        if (!name.includes("fastq")) {
           ok = false;
-          return { ...s, error: 'Expected FASTQ' };
+          return { ...s, error: "Expected FASTQ" };
         }
 
         return { ...s, error: undefined };
-      }),
+      })
     );
 
-    if (!ok) setGlobalError('Fix file errors first.');
+    if (!ok) setGlobalError("Fix file errors first.");
     return ok;
   }
 
   function haveAllRequiredFiles(): boolean {
-    const nR1 = slots.find(s => s.key === 'nR1')?.file;
-    const nR2 = slots.find(s => s.key === 'nR2')?.file;
+    const nR1 = slots.find((s) => s.key === "nR1")?.file;
+    const nR2 = slots.find((s) => s.key === "nR2")?.file;
     if (!nR1 || !nR2) return false;
 
     if (!tumorAvailable) return true;
 
-    const tR1 = slots.find(s => s.key === 'tR1')?.file;
-    const tR2 = slots.find(s => s.key === 'tR2')?.file;
+    const tR1 = slots.find((s) => s.key === "tR1")?.file;
+    const tR2 = slots.find((s) => s.key === "tR2")?.file;
     return !!(tR1 && tR2);
   }
 
@@ -217,7 +245,7 @@ export function Step2() {
     setGlobalError(null);
 
     if (!haveAllRequiredFiles()) {
-      setGlobalError('Please upload all required files first.');
+      setGlobalError("Please upload all required files first.");
       return;
     }
 
@@ -227,7 +255,7 @@ export function Step2() {
     setBusy(true);
     setValidating(true);
 
-    await new Promise<void>(resolve => setTimeout(resolve, VALIDATE_TIME_MS));
+    await new Promise<void>((resolve) => setTimeout(resolve, VALIDATE_TIME_MS));
 
     upsertPatient({
       tumorAvailable,
@@ -251,16 +279,16 @@ export function Step2() {
       upsertPatient({
         tumorAvailable: false,
         imprintSkipped: true,
-        imprintSkipReason: 'Tumor not available',
+        imprintSkipReason: "Tumor not available",
         imprintRunStarted: false,
         imprintInputsReady: false,
       });
-      setActiveStepId('step3');
+      setActiveStepId("step3");
       return;
     }
 
     if (!stored?.imprintValidated) {
-      setGlobalError('Validate files first.');
+      setGlobalError("Validate files first.");
       return;
     }
 
@@ -269,24 +297,30 @@ export function Step2() {
       imprintRunStarted: true,
       imprintInputsReady: true,
       imprintCreated: false,
-      imprintCreatedAt: '',
-      imprintModules: { LOH: 'idle', CNV: 'idle', SNV: 'idle' },
+      imprintCreatedAt: "",
+      imprintModules: { LOH: "idle", CNV: "idle", SNV: "idle" },
     });
 
-    setTimeout(() => setActiveStepId('step2_loh'), 800);
+    setTimeout(() => setActiveStepId("step2_loh"), 800);
   }
 
   // SUBSTEPS autorun (Task #3): only if imprintRunStarted === true
   React.useEffect(() => {
     if (!patientId) return;
 
-    const moduleKey: ImprintModuleKey | null = isLoh ? 'LOH' : isCnv ? 'CNV' : isSnv ? 'SNV' : null;
+    const moduleKey: ImprintModuleKey | null = isLoh
+      ? "LOH"
+      : isCnv
+      ? "CNV"
+      : isSnv
+      ? "SNV"
+      : null;
     if (!moduleKey) return;
 
     const p = PatientsStore.findById(patientId);
 
     if (p?.imprintSkipped) {
-      setActiveStepId('step2');
+      setActiveStepId("step2");
       return;
     }
 
@@ -294,20 +328,18 @@ export function Step2() {
     if (!p?.imprintRunStarted) return;
 
     const current = p?.imprintModules?.[moduleKey];
-    if (current === 'done') {
-      const next = moduleKey === 'LOH' ? 'step2_cnv' : moduleKey === 'CNV' ? 'step2_snv' : 'step2';
-      const t = setTimeout(() => setActiveStepId(next), 800);
-      return () => clearTimeout(t);
+    if (current === "done") {
+      return;
     }
 
     setBusy(true);
 
     upsertPatient({
       imprintModules: {
-        LOH: p?.imprintModules?.LOH ?? 'idle',
-        CNV: p?.imprintModules?.CNV ?? 'idle',
-        SNV: p?.imprintModules?.SNV ?? 'idle',
-        [moduleKey]: 'running',
+        LOH: p?.imprintModules?.LOH ?? "idle",
+        CNV: p?.imprintModules?.CNV ?? "idle",
+        SNV: p?.imprintModules?.SNV ?? "idle",
+        [moduleKey]: "running",
       },
     });
 
@@ -316,25 +348,25 @@ export function Step2() {
 
       upsertPatient({
         imprintModules: {
-          LOH: p2?.imprintModules?.LOH ?? 'idle',
-          CNV: p2?.imprintModules?.CNV ?? 'idle',
-          SNV: p2?.imprintModules?.SNV ?? 'idle',
-          [moduleKey]: 'done',
+          LOH: p2?.imprintModules?.LOH ?? "idle",
+          CNV: p2?.imprintModules?.CNV ?? "idle",
+          SNV: p2?.imprintModules?.SNV ?? "idle",
+          [moduleKey]: "done",
         },
       });
 
       setBusy(false);
 
-      if (moduleKey === 'LOH') setActiveStepId('step2_cnv');
-      if (moduleKey === 'CNV') setActiveStepId('step2_snv');
+      if (moduleKey === "LOH") setActiveStepId("step2_cnv");
+      if (moduleKey === "CNV") setActiveStepId("step2_snv");
 
-      if (moduleKey === 'SNV') {
+      if (moduleKey === "SNV") {
         upsertPatient({
           imprintCreated: true,
           imprintCreatedAt: new Date().toISOString(),
         });
 
-        setTimeout(() => setActiveStepId('step2'), 1200);
+        setTimeout(() => setActiveStepId("step2"), 1200);
       }
     }, PROCESS_TIME_MS);
 
@@ -346,7 +378,9 @@ export function Step2() {
     return (
       <div className="space-y-2">
         <div className="text-lg font-semibold">Step 2 — Create imprint</div>
-        <div className="text-sm text-slate-600">Select a patient in Step 1 first.</div>
+        <div className="text-sm text-slate-600">
+          Select a patient in Step 1 first.
+        </div>
       </div>
     );
   }
@@ -355,34 +389,42 @@ export function Step2() {
 
   // SUBSTEPS (Task #2): no duplicated big titles — tree already shows it
   if (!isMain) {
-    const title = isLoh ? 'LOH discovery' : isCnv ? 'CNV segments' : 'SNV compendium';
-    const subtitle = isLoh
-      ? 'Windows + major allele inference for BAF'
+    const title = isLoh
+      ? "LOH discovery"
       : isCnv
-        ? 'Tumor CNV profile used as tags'
-        : 'Tumor-confirmed SNVs (no indels)';
+      ? "CNV segments"
+      : "SNV compendium";
+    const subtitle = isLoh
+      ? "Windows + major allele inference for BAF"
+      : isCnv
+      ? "Tumor CNV profile used as tags"
+      : "Tumor-confirmed SNVs (no indels)";
 
-    const moduleKey: ImprintModuleKey = isLoh ? 'LOH' : isCnv ? 'CNV' : 'SNV';
-    const st = stored?.imprintModules?.[moduleKey] ?? 'idle';
+    const moduleKey: ImprintModuleKey = isLoh ? "LOH" : isCnv ? "CNV" : "SNV";
+    const st = stored?.imprintModules?.[moduleKey] ?? "idle";
 
     return (
       <div className="space-y-4">
         <div className="text-sm text-slate-600">
-          Patient: <span className="font-medium text-slate-900">{patientLabel}</span>{' '}
+          Patient:{" "}
+          <span className="font-medium text-slate-900">{patientLabel}</span>{" "}
           <span className="text-slate-400">({patientId})</span>
         </div>
 
         {/* Task #3: guidance when opened manually */}
         {!stored?.imprintRunStarted ? (
           <Card className="p-5">
-            <div className="text-sm font-semibold text-slate-900">Imprint pipeline not started</div>
+            <div className="text-sm font-semibold text-slate-900">
+              Imprint pipeline not started
+            </div>
             <div className="mt-1 text-xs text-slate-500">
-              Start the imprint pipeline from Step 2 (FASTQ upload) to run LOH → CNV → SNV.
+              Start the imprint pipeline from Step 2 (FASTQ upload) to run LOH →
+              CNV → SNV.
             </div>
             <div className="mt-4">
               <button
                 type="button"
-                onClick={() => setActiveStepId('step2')}
+                onClick={() => setActiveStepId("step2")}
                 className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50"
               >
                 Go to Step 2
@@ -391,8 +433,15 @@ export function Step2() {
           </Card>
         ) : null}
 
-        <ScanCard title={title} subtitle={subtitle} running={st === 'running'} done={st === 'done'} />
-        <div className="text-xs text-slate-500">Demo: scan → ✓ → next sub-step.</div>
+        <ScanCard
+          title={title}
+          subtitle={subtitle}
+          running={st === "running"}
+          done={st === "done"}
+        />
+        <div className="text-xs text-slate-500">
+          Demo: scan → ✓ → next sub-step.
+        </div>
       </div>
     );
   }
@@ -406,7 +455,8 @@ export function Step2() {
       <div className="text-lg font-semibold">Step 2 — FASTQ upload</div>
 
       <div className="text-sm text-slate-600">
-        Patient: <span className="font-medium text-slate-900">{patientLabel}</span>{' '}
+        Patient:{" "}
+        <span className="font-medium text-slate-900">{patientLabel}</span>{" "}
         <span className="text-slate-400">({patientId})</span>
       </div>
 
@@ -414,19 +464,26 @@ export function Step2() {
         <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-900">
           ✓ Imprint is ready.
           <div className="mt-1 text-xs text-emerald-800">
-            Created: {stored.imprintCreatedAt ? new Date(stored.imprintCreatedAt).toLocaleString() : '—'}
+            Created:{" "}
+            {stored.imprintCreatedAt
+              ? new Date(stored.imprintCreatedAt).toLocaleString()
+              : "—"}
           </div>
         </div>
       ) : null}
 
       {globalError ? (
-        <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-900">{globalError}</div>
+        <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-900">
+          {globalError}
+        </div>
       ) : null}
 
       <Card className="p-5">
         <div className="flex items-start justify-between gap-3">
           <div>
-            <div className="text-sm font-semibold text-slate-900">Upload files</div>
+            <div className="text-sm font-semibold text-slate-900">
+              Upload files
+            </div>
             <div className="mt-1 text-xs text-slate-500">
               Normal R1/R2 + Tumor R1/R2 → Validate → Next (start LOH→CNV→SNV).
             </div>
@@ -436,7 +493,7 @@ export function Step2() {
             <input
               type="checkbox"
               checked={tumorAvailable}
-              onChange={e => {
+              onChange={(e) => {
                 setTumorAvailable(e.target.checked);
                 upsertPatient({ tumorAvailable: e.target.checked });
               }}
@@ -447,43 +504,55 @@ export function Step2() {
 
         <div className="mt-5 grid gap-4 md:grid-cols-2">
           <FileSlot
-            title={slots.find(s => s.key === 'nR1')?.title ?? 'Normal R1'}
-            file={slots.find(s => s.key === 'nR1')?.file ?? null}
-            error={slots.find(s => s.key === 'nR1')?.error}
+            title={slots.find((s) => s.key === "nR1")?.title ?? "Normal R1"}
+            file={slots.find((s) => s.key === "nR1")?.file ?? null}
+            error={slots.find((s) => s.key === "nR1")?.error}
             validating={validating}
-            validatedOk={!!stored?.imprintValidated && !!slots.find(s => s.key === 'nR1')?.file}
-            onPick={f => setSlotFile('nR1', f)}
-            onClear={() => setSlotFile('nR1', null)}
+            validatedOk={
+              !!stored?.imprintValidated &&
+              !!slots.find((s) => s.key === "nR1")?.file
+            }
+            onPick={(f) => setSlotFile("nR1", f)}
+            onClear={() => setSlotFile("nR1", null)}
           />
           <FileSlot
-            title={slots.find(s => s.key === 'nR2')?.title ?? 'Normal R2'}
-            file={slots.find(s => s.key === 'nR2')?.file ?? null}
-            error={slots.find(s => s.key === 'nR2')?.error}
+            title={slots.find((s) => s.key === "nR2")?.title ?? "Normal R2"}
+            file={slots.find((s) => s.key === "nR2")?.file ?? null}
+            error={slots.find((s) => s.key === "nR2")?.error}
             validating={validating}
-            validatedOk={!!stored?.imprintValidated && !!slots.find(s => s.key === 'nR2')?.file}
-            onPick={f => setSlotFile('nR2', f)}
-            onClear={() => setSlotFile('nR2', null)}
+            validatedOk={
+              !!stored?.imprintValidated &&
+              !!slots.find((s) => s.key === "nR2")?.file
+            }
+            onPick={(f) => setSlotFile("nR2", f)}
+            onClear={() => setSlotFile("nR2", null)}
           />
 
           {tumorAvailable ? (
             <>
               <FileSlot
-                title={slots.find(s => s.key === 'tR1')?.title ?? 'Tumor R1'}
-                file={slots.find(s => s.key === 'tR1')?.file ?? null}
-                error={slots.find(s => s.key === 'tR1')?.error}
+                title={slots.find((s) => s.key === "tR1")?.title ?? "Tumor R1"}
+                file={slots.find((s) => s.key === "tR1")?.file ?? null}
+                error={slots.find((s) => s.key === "tR1")?.error}
                 validating={validating}
-                validatedOk={!!stored?.imprintValidated && !!slots.find(s => s.key === 'tR1')?.file}
-                onPick={f => setSlotFile('tR1', f)}
-                onClear={() => setSlotFile('tR1', null)}
+                validatedOk={
+                  !!stored?.imprintValidated &&
+                  !!slots.find((s) => s.key === "tR1")?.file
+                }
+                onPick={(f) => setSlotFile("tR1", f)}
+                onClear={() => setSlotFile("tR1", null)}
               />
               <FileSlot
-                title={slots.find(s => s.key === 'tR2')?.title ?? 'Tumor R2'}
-                file={slots.find(s => s.key === 'tR2')?.file ?? null}
-                error={slots.find(s => s.key === 'tR2')?.error}
+                title={slots.find((s) => s.key === "tR2")?.title ?? "Tumor R2"}
+                file={slots.find((s) => s.key === "tR2")?.file ?? null}
+                error={slots.find((s) => s.key === "tR2")?.error}
                 validating={validating}
-                validatedOk={!!stored?.imprintValidated && !!slots.find(s => s.key === 'tR2')?.file}
-                onPick={f => setSlotFile('tR2', f)}
-                onClear={() => setSlotFile('tR2', null)}
+                validatedOk={
+                  !!stored?.imprintValidated &&
+                  !!slots.find((s) => s.key === "tR2")?.file
+                }
+                onPick={(f) => setSlotFile("tR2", f)}
+                onClear={() => setSlotFile("tR2", null)}
               />
             </>
           ) : null}
@@ -510,7 +579,8 @@ export function Step2() {
 
           {!tumorAvailable ? (
             <div className="text-xs text-slate-500">
-              Tumor not available → imprint is skipped and you can proceed to plasma (Step 3).
+              Tumor not available → imprint is skipped and you can proceed to
+              plasma (Step 3).
             </div>
           ) : null}
         </div>

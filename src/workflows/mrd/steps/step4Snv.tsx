@@ -22,12 +22,11 @@ function ProgressBar({ running }: { running: boolean }) {
 
 /**
  * Step 4 substep: SNV
- * Task: remove duplicated headers (tree already shows step title).
+ * IMPORTANT: if already done (green) -> no auto-jump
  */
 export function Step4Snv() {
   const { state, activeStepId, setActiveStepId } = useWorkflow();
 
-  // Hooks must always run -> safe empty values
   const patientId = state.selectedPatient?.id ?? '';
   const patientLabel = (state.selectedPatient?.label || patientId).trim();
 
@@ -64,13 +63,9 @@ export function Step4Snv() {
 
     const st = p.analysisChannels?.SNV ?? 'idle';
 
-    // If already done -> jump to CNV
-    if (st === 'done') {
-      const t = setTimeout(() => setActiveStepId('step4_cnv'), 800);
-      return () => clearTimeout(t);
-    }
+    // ✅ ключевое: если уже done — НЕ делаем авто-переход
+    if (st === 'done') return;
 
-    // Mark running
     upsertPatient({
       analysisChannels: {
         SNV: 'running',
@@ -94,7 +89,6 @@ export function Step4Snv() {
     return () => clearTimeout(timer);
   }, [patientId, isHere, setActiveStepId, upsertPatient]);
 
-  // After hooks -> conditional render is safe
   if (!patientId) {
     return (
       <div className="space-y-2">
@@ -110,9 +104,6 @@ export function Step4Snv() {
 
   return (
     <div className="space-y-4">
-      {/* ✅ Removed duplicated big header.
-          The tree already shows: "SNV channel".
-          Here we show only lightweight context. */}
       <div className="text-sm text-slate-600">
         Patient: <span className="font-medium text-slate-900">{patientLabel}</span>{' '}
         <span className="text-slate-400">({patientId})</span> • Mode:{' '}
@@ -137,7 +128,6 @@ export function Step4Snv() {
         </div>
 
         <ProgressBar running={st === 'running'} />
-
         {st === 'done' ? <div className="mt-4 text-xs text-emerald-700">✓ SNV channel completed</div> : null}
       </Card>
 
