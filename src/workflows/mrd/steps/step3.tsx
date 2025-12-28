@@ -46,6 +46,11 @@ function uid(prefix = 'plasma') {
   return `${prefix}_${Math.random().toString(16).slice(2)}_${Date.now()}`;
 }
 
+/**
+ * IMPORTANT:
+ * - For Pre-op labels we display absolute day number (no minus) => "Pre-op (day 10)"
+ * - But we keep dayOffset negative (e.g. -10) because it may be useful later.
+ */
 function computeRelationToSurgery(drawDate: string, surgeryDate?: string) {
   if (!drawDate || !surgeryDate) return { relation: 'Plasma', dayOffset: undefined as number | undefined };
 
@@ -53,7 +58,7 @@ function computeRelationToSurgery(drawDate: string, surgeryDate?: string) {
   const d2 = new Date(`${surgeryDate}T00:00:00`);
   const diffDays = Math.round((d1.getTime() - d2.getTime()) / (1000 * 60 * 60 * 24));
 
-  if (diffDays < 0) return { relation: `Pre-op (day ${diffDays})`, dayOffset: diffDays };
+  if (diffDays < 0) return { relation: `Pre-op (day ${Math.abs(diffDays)})`, dayOffset: diffDays };
   if (diffDays === 0) return { relation: 'Op day', dayOffset: diffDays };
   return { relation: `Post-op (day ${diffDays})`, dayOffset: diffDays };
 }
@@ -192,7 +197,7 @@ export function Step3() {
 
   const [resetNonce, setResetNonce] = React.useState(0);
 
-  // форсим перерисовку после изменений localStorage
+  // force rerender after localStorage changes
   const [storeTick, setStoreTick] = React.useState(0);
 
   const stored = patientId ? PatientsStore.findById(patientId) : null;
@@ -223,7 +228,7 @@ export function Step3() {
 
   function setSlotFile(key: FileSlotKey, file: File | null) {
     setSlots(prev => prev.map(s => (s.key === key ? { ...s, file, error: undefined } : s)));
-    setValidated(false); // сменили файл => нужна новая валидация
+    setValidated(false); // file changed => re-validate
     setGlobalError(null);
   }
 
@@ -323,14 +328,20 @@ export function Step3() {
     setGlobalError(null);
   }
 
-  function handleAdd3DemoTimepoints() {
+  /**
+   * Demo: add 4 timepoints relative to surgery:
+   * -10, 0, +30, +60
+   * No duplicates by date.
+   */
+  function handleAdd4DemoTimepoints() {
     if (!patientId) return;
 
     const base = surgeryDate || toISODate(new Date());
 
     const candidates: Array<{ date: string; label: string }> = [
-      { date: addDays(base, -10), label: 'Pre-op (day -10)' },
+      { date: addDays(base, -10), label: 'Pre-op (day 10)' }, // no minus in label
       { date: addDays(base, 0), label: 'Op day' },
+      { date: addDays(base, 30), label: 'Post-op (day 30)' },
       { date: addDays(base, 60), label: 'Post-op (day 60)' },
     ];
 
@@ -339,7 +350,10 @@ export function Step3() {
     const toAdd: PlasmaSample[] = [];
     for (const c of candidates) {
       if (existingDates.has(c.date)) continue;
+
+      // relation string is generated consistently (pre-op without minus now)
       const computed = computeRelationToSurgery(c.date, surgeryDate);
+
       toAdd.push({
         id: uid('demo'),
         drawDate: c.date,
@@ -469,10 +483,10 @@ export function Step3() {
 
           <button
             type="button"
-            onClick={handleAdd3DemoTimepoints}
+            onClick={handleAdd4DemoTimepoints}
             className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
           >
-            Add 3 timepoints (demo)
+            Add 4 timepoints (demo)
           </button>
 
           <div className="text-xs text-slate-500">
@@ -509,7 +523,7 @@ export function Step3() {
                           </>
                         ) : null}
                       </div>
-                      <div className="mt-1 text-xs text-emerald-700 font-semibold">✓ Validated</div>
+                      <div className="mt-1 text-xs font-semibold text-emerald-700">✓ Validated</div>
                     </div>
 
                     <button
@@ -529,6 +543,7 @@ export function Step3() {
         )}
       </Card>
 
+      {/* keep storeTick referenced to force updates when localStorage changes */}
       <span className="hidden">{storeTick}</span>
     </div>
   );

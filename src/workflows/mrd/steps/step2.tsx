@@ -572,9 +572,9 @@ export function Step2() {
             type="button"
             disabled={!canNext}
             onClick={handleNext}
-            className="rounded-xl bg-sky-600 px-4 py-2 text-sm font-semibold text-white hover:bg-sky-700 disabled:opacity-60"
+            className="rounded-xl bg-sky-500 px-4 py-2 text-sm font-semibold text-white hover:bg-sky-700 disabled:opacity-60"
           >
-            Next (start imprint)
+            Start imprint
           </button>
 
           {!tumorAvailable ? (

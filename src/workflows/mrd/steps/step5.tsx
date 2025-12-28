@@ -49,86 +49,118 @@ function fmtPct(n: number) {
 }
 
 function parseDate(d: string): number {
-  // expects YYYY-MM-DD; Date.parse works OK here
   const t = Date.parse(d);
   return Number.isFinite(t) ? t : NaN;
 }
 
 /**
- * DEMO SERIES (Responder by default)
- * Goal: in demo, the curve should almost always go below threshold after surgery.
+ * DEMO SERIES (fixed shape):
+ * - Pre-op: almost flat, slightly noisy, above threshold
+ * - Surgery day: still above threshold (no drop on surgery day)
+ * - Post-op: sharp drop right after surgery (first post point below threshold), then slow decay/plateau
  */
-function buildSeries(patientId: string, stored: StoredPatientLite | undefined, thresholdPct: number): Point[] {
-  const samples: PlasmaSampleLite[] = Array.isArray(stored?.plasmaSamples) ? stored!.plasmaSamples! : [];
+function buildSeries(patientId: string, stored: unknown, thresholdPct: number): Point[] {
+  const rec = stored as StoredPatientLite | undefined;
+  const samples = Array.isArray(rec?.plasmaSamples) ? rec!.plasmaSamples! : [];
   if (!samples.length) return [];
 
-  const sorted = [...samples].sort((a, b) => (parseDate(a.drawDate ?? '') || 0) - (parseDate(b.drawDate ?? '') || 0));
+  const sorted = [...samples].sort((a, b) => (parseDate(a.drawDate || '') || 0) - (parseDate(b.drawDate || '') || 0));
 
-  const tSurg = stored?.surgeryDate ? parseDate(stored.surgeryDate) : NaN;
+  const tSurg = rec?.surgeryDate ? parseDate(rec.surgeryDate) : NaN;
   const hasSurgery = Number.isFinite(tSurg);
 
   const thr = clamp(thresholdPct, 0.001, 0.2); // percent units
-  const targetLow = clamp(thr * 0.65, 0.001, 0.2); // below threshold
 
-  // Pre-op baseline typically above threshold
-  const preHigh = clamp(Math.max(thr * 2.2, 0.035), 0.01, 0.12);
+  // target "low plateau" WELL below threshold (so it "almost always" ends below)
+  const lowPlateau = clamp(thr * 0.55, 0.001, 0.2);
 
+  // baseline above threshold for pre-op / surgery day
+  const preHigh = clamp(Math.max(thr * 2.1, thr + 0.015, 0.04), 0.01, 0.12);
+
+  // tiny deterministic jitter (never changes the overall scenario)
   const jitter = (key: string) => {
     const u = hashToUnit(`${patientId}:${key}`);
-    return (u - 0.5) * 0.002; // +/-0.001%
+    return (u - 0.5) * 0.0012; // +/- 0.0006%
   };
 
+  // classify points relative to surgery date
+  let surgeryIdx = -1;
   const preIdxs: number[] = [];
   const postIdxs: number[] = [];
 
   sorted.forEach((s, i) => {
     const t = parseDate(String(s.drawDate ?? ''));
-    if (hasSurgery && Number.isFinite(t)) {
-      if (t < (tSurg as number)) preIdxs.push(i);
-      else postIdxs.push(i);
-    }
+    if (!hasSurgery || !Number.isFinite(t)) return;
+
+    // define "surgery day sample" as the one with exact same date
+    if (t === tSurg && surgeryIdx === -1) surgeryIdx = i;
+
+    if (t < tSurg) preIdxs.push(i);
+    if (t > tSurg) postIdxs.push(i);
   });
 
-  const firstPostIdx = postIdxs.length ? postIdxs[0] : 0;
+  // If there is no exact surgery-day sample, treat the first >= surgery as "surgery point"
+  if (hasSurgery && surgeryIdx === -1) {
+    const firstGE = sorted.findIndex((s) => {
+      const t = parseDate(String(s.drawDate ?? ''));
+      return Number.isFinite(t) && t >= tSurg;
+    });
+    surgeryIdx = firstGE;
+  }
+
+  const firstPostIdx = postIdxs.length ? postIdxs[0] : -1;
+
+  // if we don’t have surgery date, do a gentle almost-flat then decline at end
+  const fallbackNoSurgery = (i: number, s: PlasmaSampleLite) => {
+    const n = sorted.length;
+    const u = n <= 1 ? 1 : i / (n - 1);
+    // keep most of the path flat, then drop near the end
+    const eased = u < 0.65 ? u * 0.05 : 0.05 + (u - 0.65) / 0.35; // 0..1-ish but flat first
+    const val = preHigh + (lowPlateau - preHigh) * eased + jitter(`${s.id}:${s.drawDate}`);
+    return clamp(val, 0.001, 0.12);
+  };
 
   return sorted.map((s, i) => {
     const date = String(s.drawDate ?? '');
     const t = parseDate(date);
 
-    const explicit = s.tumorFractionPct;
+    const explicit = (s as PlasmaSampleLite).tumorFractionPct;
     let tf = typeof explicit === 'number' ? explicit : NaN;
 
     if (!Number.isFinite(tf)) {
-      if (!hasSurgery || !Number.isFinite(t)) {
-        // Fallback: gentle monotonic decrease, ending below threshold
-        const n = sorted.length;
-        const start = preHigh;
-        const end = targetLow;
-        const u = n <= 1 ? 1 : i / (n - 1);
-        tf = start + (end - start) * u + jitter(`${s.id ?? i}:${date}`);
-        tf = clamp(tf, 0.001, 0.12);
-      } else if (t < (tSurg as number)) {
-        // Pre-op: above threshold, drifting down towards surgery
-        const nPre = Math.max(1, preIdxs.length);
-        const j = Math.max(0, preIdxs.indexOf(i));
-        const u = nPre <= 1 ? 1 : j / (nPre - 1);
-
-        const near = clamp(Math.max(thr * 1.3, thr + 0.01), 0.01, 0.12);
-        tf = preHigh + (near - preHigh) * u + jitter(`${s.id ?? i}:${date}`);
-        tf = clamp(tf, 0.001, 0.12);
+      if (!hasSurgery || !Number.isFinite(t) || surgeryIdx === -1) {
+        tf = fallbackNoSurgery(i, s);
       } else {
-        // Post-op (including day-of): exponential decay to below threshold
-        const k = Math.max(0, i - firstPostIdx);
-        const startPost = clamp(Math.max(thr * 1.1, thr + 0.005), 0.008, 0.12);
-        const decay = 0.55;
+        // --- PRE-OP (flat) ---
+        if (t < tSurg) {
+          tf = preHigh + jitter(`${s.id}:${date}`);
+          // keep safely above threshold
+          tf = Math.max(tf, thr * 1.25);
+          tf = clamp(tf, 0.001, 0.12);
+        }
+        // --- SURGERY DAY (still above threshold) ---
+        else if (i === surgeryIdx || t === tSurg) {
+          // very small change vs pre-op (still above threshold)
+          tf = preHigh * 0.985 + jitter(`${s.id}:${date}`);
+          tf = Math.max(tf, thr * 1.1);
+          tf = clamp(tf, 0.001, 0.12);
+        }
+        // --- POST-OP (sharp drop right after surgery) ---
+        else {
+          // k: how many post-op points since the first post sample
+          const k = firstPostIdx >= 0 ? Math.max(0, i - firstPostIdx) : 0;
 
-        tf = targetLow + (startPost - targetLow) * Math.pow(decay, k) + jitter(`${s.id ?? i}:${date}`);
+          // first post point drops below threshold immediately
+          const firstPost = clamp(thr * 0.78, 0.001, 0.2); // below threshold
 
-        // HARD GUARANTEE: after surgery day (k>=1) => always below threshold
-        if (k >= 1) tf = Math.min(tf, thr * 0.92);
-        else tf = Math.min(tf, thr * 1.05);
+          // then gently approaches lowPlateau
+          const decay = 0.55; // fast initial, then plateau-ish
+          tf = lowPlateau + (firstPost - lowPlateau) * Math.pow(decay, k) + jitter(`${s.id}:${date}`);
 
-        tf = clamp(tf, 0.001, 0.12);
+          // enforce: all post-op points must be below threshold
+          tf = Math.min(tf, thr * 0.92);
+          tf = clamp(tf, 0.001, 0.12);
+        }
       }
     }
 
@@ -198,9 +230,8 @@ function TimelinePlot({
     );
   }
 
-  // ---- COLORS (only blues inside the chart) ----
-  const BLUE_LINE = '#0ea5e9'; // sky-500
-  const BLUE_TEXT = '#0284c7'; // sky-600
+  const BLUE_LINE = '#0ea5e9';
+  const BLUE_TEXT = '#0284c7';
   const BLUE_FAINT = '#0ea5e9';
   const AXIS = '#e2e8f0';
   const LABEL = '#94a3b8';
@@ -210,7 +241,7 @@ function TimelinePlot({
 
   const padL = 54;
   const padR = 24;
-  const padT = 30; // extra so SURGERY label never clips
+  const padT = 30;
   const padB = 28;
 
   const tsPoints = points.map((p) => p.t).filter((t) => Number.isFinite(t)) as number[];
@@ -272,7 +303,11 @@ function TimelinePlot({
           </linearGradient>
         </defs>
 
-        <path d={`M ${padL} ${padT} L ${padL} ${H - padB} L ${W - padR} ${H - padB}`} fill="none" stroke={AXIS} />
+        <path
+          d={`M ${padL} ${padT} L ${padL} ${H - padB} L ${W - padR} ${H - padB}`}
+          fill="none"
+          stroke={AXIS}
+        />
 
         {ticks.map((v, i) => {
           const y = sy(v);
@@ -313,8 +348,9 @@ function TimelinePlot({
 
         {(() => {
           const idxToShow = new Set<number>();
-          if (points.length <= 4) points.forEach((_, i) => idxToShow.add(i));
-          else {
+          if (points.length <= 4) {
+            points.forEach((_, i) => idxToShow.add(i));
+          } else {
             idxToShow.add(0);
             idxToShow.add(points.length - 1);
             idxToShow.add(Math.floor(points.length / 2));
@@ -357,7 +393,6 @@ function StatusModal({ open, onClose }: { open: boolean; onClose: () => void }) 
 
     for (const p of patients) {
       const samples = Array.isArray(p.plasmaSamples) ? p.plasmaSamples : [];
-      const thr = typeof p.analysisConfig?.thresholdPct === 'number' ? p.analysisConfig.thresholdPct : 0.02;
 
       if (!samples.length) {
         out.push({
@@ -372,6 +407,7 @@ function StatusModal({ open, onClose }: { open: boolean; onClose: () => void }) 
         continue;
       }
 
+      const thr = p.analysisConfig?.thresholdPct ?? 0.02;
       const series = buildSeries(p.id, p, thr);
       samples.forEach((s, i) => {
         out.push({
@@ -488,7 +524,7 @@ export function Step5() {
   const stored = PatientsStore.findById(patientId) as unknown as StoredPatientLite | undefined;
   const patientLabel = state.selectedPatient?.label ?? patientId;
 
-  // ✅ Threshold comes from Step 4 config (locked in Step 5)
+  // Threshold comes from Step 4 config now (no UI in Step 5)
   const threshold = stored?.analysisConfig?.thresholdPct ?? 0.02;
 
   const points = buildSeries(patientId, stored, threshold);
@@ -557,9 +593,7 @@ export function Step5() {
         <Card className="p-5">
           <div className="flex items-center justify-between gap-3">
             <div className="text-sm font-semibold text-slate-900">Tumor fraction timeline (demo)</div>
-            <div className="text-xs text-slate-500">
-              {points.length ? `Range: ${fmtPct(minY)} → ${fmtPct(maxY)}` : 'Range: —'}
-            </div>
+            <div className="text-xs text-slate-500">{points.length ? `Range: ${fmtPct(minY)} → ${fmtPct(maxY)}` : 'Range: —'}</div>
           </div>
 
           <div className="mt-4">
