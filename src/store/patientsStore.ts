@@ -2,18 +2,45 @@ import type { Patient } from "@/types/workflowState";
 
 const LS_KEY = "mrd_patients_v2";
 
+// --- subscriptions / versioning for reactive UI ---
+type PatientsStoreListener = () => void;
+
+let storeVersion = 0;
+const listeners = new Set<PatientsStoreListener>();
+
+export function getPatientsStoreVersion(): number {
+  return storeVersion;
+}
+
+export function subscribePatientsStore(listener: PatientsStoreListener): () => void {
+  listeners.add(listener);
+  return () => listeners.delete(listener);
+}
+
+function notifyPatientsStore(): void {
+  storeVersion += 1;
+  for (const l of listeners) l();
+}
+
+// Debug exposure without `any` (eslint-safe)
+declare global {
+  interface Window {
+    __PATIENTS_STORE__?: typeof PatientsStore;
+  }
+}
+
 export type ImprintModuleKey = "LOH" | "CNV" | "SNV";
 export type ImprintModuleState = "idle" | "running" | "done";
 
 // Step4 (Run)
-export type AnalysisChannelKey = "SNV" | "CNV";
+export type AnalysisChannelKey = "SNV" | "CNV" | "LOH";
 export type AnalysisChannelState = "idle" | "running" | "done";
 
 // ✅ NEW: Step4 configuration (demo)
 export type AnalysisConfig = {
   mode: "auto" | "manual";
   thresholdPct: number; // e.g. 0.03 means 0.03%
-  channels: Record<AnalysisChannelKey, boolean>;
+  channels: Partial<Record<AnalysisChannelKey, boolean>>;
   pon: string; // demo selector
 };
 
@@ -63,7 +90,7 @@ export type StoredPatient = Patient & {
   analysisConfig?: AnalysisConfig; // ✅ NEW
   analysisRunStarted?: boolean;
   analysisRunAt?: string; // ISO
-  analysisChannels?: Record<AnalysisChannelKey, AnalysisChannelState>;
+  analysisChannels?: Partial<Record<AnalysisChannelKey, AnalysisChannelState>>;
   analysisCompleted?: boolean;
 };
 
@@ -86,10 +113,12 @@ export const PatientsStore = {
 
   saveAll(patients: StoredPatient[]) {
     localStorage.setItem(LS_KEY, JSON.stringify(patients));
+    notifyPatientsStore();
   },
 
   clear() {
     localStorage.removeItem(LS_KEY);
+    notifyPatientsStore();
   },
 
   findById(id: string): StoredPatient | undefined {
@@ -139,9 +168,12 @@ export const PatientsStore = {
 
   importJson(json: string): StoredPatient[] {
     const parsed = safeParse<StoredPatient[]>(json);
-    if (!Array.isArray(parsed))
-      throw new Error("Invalid JSON (expected array)");
+    if (!Array.isArray(parsed)) throw new Error("Invalid JSON (expected array)");
     this.saveAll(parsed);
     return parsed;
   },
 };
+
+if (typeof window !== "undefined") {
+  window.__PATIENTS_STORE__ = PatientsStore;
+}

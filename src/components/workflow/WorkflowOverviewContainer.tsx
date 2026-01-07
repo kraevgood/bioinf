@@ -6,7 +6,6 @@ import { WorkflowOverviewDiagram } from "@/components/workflow/WorkflowOverviewD
 import { mrdOverview } from "@/workflows/mrd/overview";
 
 export function WorkflowOverviewContainer({ active }: { active: ModuleKey }) {
-  // фундамент под будущее переключение: просто маппинг по ключу
   const overviewByModule: Partial<Record<ModuleKey, React.ReactNode>> = {
     MRD: <WorkflowOverviewDiagram {...mrdOverview} />,
   };
@@ -15,7 +14,6 @@ export function WorkflowOverviewContainer({ active }: { active: ModuleKey }) {
 
   if (node) return <div className="mt-6">{node}</div>;
 
-  // пока остальные воркфлоу заблокированы — показываем аккуратную заглушку
   return (
     <div className="mt-6 rounded-2xl border border-slate-200 bg-white p-6">
       <div className="text-sm font-semibold text-slate-900">Workflow overview</div>

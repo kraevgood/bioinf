@@ -4,9 +4,16 @@ import { Step1 } from "./steps/step1";
 import { Step2 } from "./steps/step2";
 import { Step3 } from "./steps/step3";
 import { Step4 } from "./steps/step4";
-import { Step4Snv } from './steps/step4Snv';
-import { Step4Cnv } from './steps/step4Cnv';
+import { Step4Snv } from "./steps/step4Snv";
+import { Step4Cnv } from "./steps/step4Cnv";
+import { Step4Loh } from "./steps/step4Loh";
 import { Step5 } from "./steps/step5";
+
+import {
+  ChromosomeLOHIcon,
+  ChromosomeCNVIcon,
+  ChromosomeSNVIcon,
+} from "@/components/icons/ImprintIcons";
 
 export const mrdWorkflowConfig: WorkflowConfig = {
   key: "MRD",
@@ -23,7 +30,7 @@ export const mrdWorkflowConfig: WorkflowConfig = {
     },
     {
       id: "step2",
-      title: "Create imprint (if tumor available)",
+      title: "Create imprint",
       subtitle: "Upload tumor FASTQ R1/R2 → validate → imprint",
       badgeText: "Imprint",
       status: "idle",
@@ -35,6 +42,7 @@ export const mrdWorkflowConfig: WorkflowConfig = {
           subtitle: "Windows + major allele inference for BAF",
           badgeText: "1 Mb",
           status: "idle",
+          icon: <ChromosomeLOHIcon size={22} />,
           render: () => <Step2 />,
         },
         {
@@ -44,6 +52,7 @@ export const mrdWorkflowConfig: WorkflowConfig = {
           subtitle: "Tumor CNV profile used as tags",
           badgeText: "≥1.5 Mb",
           status: "idle",
+          icon: <ChromosomeCNVIcon size={22} />,
           render: () => <Step2 />,
         },
         {
@@ -53,6 +62,7 @@ export const mrdWorkflowConfig: WorkflowConfig = {
           subtitle: "Tumor-confirmed SNVs (no indels)",
           badgeText: "Genome-wide",
           status: "idle",
+          icon: <ChromosomeSNVIcon size={22} />,
           render: () => <Step2 />,
         },
       ],
@@ -61,7 +71,7 @@ export const mrdWorkflowConfig: WorkflowConfig = {
     {
       id: "step3",
       title: "Add plasma sample",
-      subtitle: "If no imprint: choose indication for non-informed",
+      subtitle: "Upload plasma FASTQ for longitudinal tracking",
       badgeText: "Plasma",
       status: "idle",
       render: () => <Step3 />,
@@ -69,16 +79,23 @@ export const mrdWorkflowConfig: WorkflowConfig = {
     {
       id: "step4",
       title: "Review & Run (configurable)",
-      subtitle: "Two channels: SNV + CNV",
+      subtitle: "Configure analysis and start the run",
       badgeText: "Config",
       status: "idle",
       children: [
         {
+          id: "step4_loh",
+          kind: "substep",
+          title: "BAF / LOH channel",
+          subtitle: "Windows + major allele inference",
+          status: "idle",
+          render: () => <Step4Loh />,
+        },
+        {
           id: "step4_snv",
           kind: "substep",
           title: "SNV channel",
-          subtitle: "Tumor-informed OR indication-guided",
-          badgeText: "AI-denoise",
+          subtitle: "Tumor-informed or ImprintAI+ (denoise-only)",
           status: "idle",
           render: () => <Step4Snv />,
         },
@@ -87,7 +104,6 @@ export const mrdWorkflowConfig: WorkflowConfig = {
           kind: "substep",
           title: "CNV channel",
           subtitle: "Read-depth + BAF + fragmentomics",
-          badgeText: "AI-denoise",
           status: "idle",
           render: () => <Step4Cnv />,
         },

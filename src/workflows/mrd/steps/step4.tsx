@@ -4,7 +4,13 @@ import React from 'react';
 import { Card } from '@/components/ui/Card';
 import { useWorkflow } from '@/components/workflow/WorkflowContext';
 import { PatientsStore } from '@/store/patientsStore';
-import type { StoredPatient, AnalysisChannelState, AnalysisConfig } from '@/store/patientsStore';
+import type {
+  StoredPatient,
+  AnalysisConfig,
+  AnalysisChannelKey,
+  AnalysisChannelState,
+  AnalysisChannelState as ChannelState,
+} from '@/store/patientsStore';
 
 function InfoRow({ label, value }: { label: string; value: React.ReactNode }) {
   return (
@@ -24,10 +30,15 @@ function SectionTitle({ title, subtitle }: { title: string; subtitle?: string })
   );
 }
 
+function getEnrichmentModelLabel(indication: string | undefined): string {
+  const raw = (indication ?? '').trim();
+  return raw ? `${raw} enrichment model` : 'Cancer-type enrichment model';
+}
+
 const DEFAULT_CONFIG: AnalysisConfig = {
   mode: 'auto',
   thresholdPct: 0.03,
-  channels: { SNV: true, CNV: true }, // fixed; UI does not expose
+  channels: { SNV: true, CNV: true },
   pon: 'default_v1',
 };
 
@@ -64,6 +75,10 @@ function ModeToggle({
   );
 }
 
+function clamp(n: number, min: number, max: number) {
+  return Math.max(min, Math.min(max, n));
+}
+
 export function Step4() {
   const { state, setActiveStepId } = useWorkflow();
 
@@ -74,7 +89,7 @@ export function Step4() {
 
   const [cfg, setCfg] = React.useState<AnalysisConfig>(stored?.analysisConfig ?? DEFAULT_CONFIG);
 
-  // Sync only when patient changes (avoid infinite loops due to store object identity)
+  // load per patient
   React.useEffect(() => {
     if (!patientId) {
       setCfg(DEFAULT_CONFIG);
@@ -95,10 +110,28 @@ export function Step4() {
 
   const plasmaCount = stored?.plasmaSamples?.length ?? 0;
   const hasPlasma = plasmaCount > 0;
-  const imprintReady = !!stored?.imprintCreated || !!stored?.imprintSkipped;
 
-  const snvState: AnalysisChannelState = stored?.analysisChannels?.SNV ?? 'idle';
-  const cnvState: AnalysisChannelState = stored?.analysisChannels?.CNV ?? 'idle';
+  const imprintCreated = !!stored?.imprintCreated;
+  const imprintSkipped = !!stored?.imprintSkipped;
+  const imprintReady = imprintCreated || imprintSkipped;
+
+  const indication = stored?.indication || state.indication;
+
+  const analysisModeLabel = imprintCreated
+    ? 'Tumor-informed'
+    : imprintSkipped
+      ? 'ImprintAI+ (denoise-only)'
+      : '—';
+
+  const analysisModeHint = imprintCreated
+    ? `Denoise + signal enrichment. Model: ${getEnrichmentModelLabel(indication)}.`
+    : imprintSkipped
+      ? 'Noise suppression only (not cancer-type dependent; cannot enrich signal).'
+      : '';
+
+  const snvState: ChannelState = stored?.analysisChannels?.SNV ?? 'idle';
+  const cnvState: ChannelState = stored?.analysisChannels?.CNV ?? 'idle';
+  const lohState: ChannelState = stored?.analysisChannels?.LOH ?? 'idle';
 
   const runStarted = !!stored?.analysisRunStarted;
   const runCompleted = !!stored?.analysisCompleted;
@@ -106,13 +139,15 @@ export function Step4() {
   const running =
     snvState === 'running' ||
     cnvState === 'running' ||
+    lohState === 'running' ||
     (runStarted && !runCompleted);
 
   const canRun = imprintReady && hasPlasma && !running && !runCompleted;
 
   function upsertPatient(patch: Partial<StoredPatient>) {
-    const base: StoredPatient = stored
-      ? stored
+    const fresh = PatientsStore.findById(patientId);
+    const base: StoredPatient = fresh
+      ? fresh
       : {
           id: patientId,
           label: patientLabel || patientId,
@@ -126,47 +161,48 @@ export function Step4() {
     });
   }
 
+  function commitCfg(next: AnalysisConfig) {
+    setCfg(next);
+    upsertPatient({ analysisConfig: next });
+  }
+
   function handleRun() {
     if (!canRun) return;
 
-    // Channels are fixed for the demo
-    const fixedCfg: AnalysisConfig = { ...cfg, channels: { SNV: true, CNV: true } };
+    const fixedCfg: AnalysisConfig = {
+      ...cfg,
+      channels: imprintCreated ? { SNV: true, CNV: true, LOH: true } : { SNV: true, CNV: true, LOH: false },
+    };
+
+    const initialChannels = (
+      imprintCreated
+        ? { LOH: 'idle', CNV: 'idle', SNV: 'idle' }
+        : { SNV: 'idle', CNV: 'idle' }
+    ) satisfies Partial<Record<AnalysisChannelKey, AnalysisChannelState>>;
 
     upsertPatient({
       analysisConfig: fixedCfg,
       analysisRunStarted: true,
       analysisCompleted: false,
       analysisRunAt: new Date().toISOString(),
-      analysisChannels: { SNV: 'idle', CNV: 'idle' },
+      analysisChannels: initialChannels,
     });
 
-    // Start with SNV
-    setTimeout(() => setActiveStepId('step4_snv'), 300);
+    const firstStep = imprintCreated ? 'step4_loh' : 'step4_snv';
+    setTimeout(() => setActiveStepId(firstStep), 250);
   }
 
-  const statusText = runCompleted
-    ? 'Completed'
-    : running
-      ? 'Running…'
-      : canRun
-        ? 'Ready to run'
-        : 'Waiting for inputs';
+  const statusText = runCompleted ? 'Completed' : running ? 'Running…' : canRun ? 'Ready to run' : 'Waiting for inputs';
 
   const requirements: string[] = [];
   if (!imprintReady) requirements.push('Complete Step 2 (create imprint or mark tumor unavailable).');
   if (!hasPlasma) requirements.push('Add plasma timepoints in Step 3.');
 
+  // Manual controls state (safe bounds)
+  const threshold = clamp(cfg.thresholdPct ?? DEFAULT_CONFIG.thresholdPct, 0.001, 0.2);
+
   return (
     <div className="space-y-5">
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <div className="text-lg font-semibold">Step 4 — Review &amp; Run</div>
-          <div className="mt-1 text-sm text-slate-600">
-            Configure analysis and start the run.
-          </div>
-        </div>
-      </div>
-
       <Card className="p-5">
         <div className="grid grid-cols-12 gap-4 items-stretch">
           {/* Patient */}
@@ -175,20 +211,16 @@ export function Step4() {
               <SectionTitle title="Patient" subtitle="Inputs and readiness" />
 
               <div className="mt-3 space-y-2">
-                <InfoRow
-                  label="Selected"
-                  value={
-                    <>
-                      {patientLabel} <span className="text-slate-400">({patientId})</span>
-                    </>
-                  }
-                />
-                <InfoRow label="Indication" value={stored?.indication || state.indication || '—'} />
+                <InfoRow label="Selected" value={<>{patientLabel}</>} />
+                <InfoRow label="Indication" value={indication || '—'} />
                 <InfoRow label="Surgery date" value={stored?.surgeryDate || state.surgeryDate || '—'} />
-                <InfoRow
-                  label="Imprint"
-                  value={stored?.imprintCreated ? 'created' : stored?.imprintSkipped ? 'skipped' : '—'}
-                />
+                <InfoRow label="Imprint" value={imprintCreated ? 'created' : imprintSkipped ? 'skipped' : '—'} />
+                <InfoRow label="Analysis mode" value={analysisModeLabel} />
+                {analysisModeHint ? (
+                  <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-700">
+                    {analysisModeHint}
+                  </div>
+                ) : null}
                 <InfoRow label="Plasma timepoints" value={plasmaCount} />
               </div>
 
@@ -223,75 +255,96 @@ export function Step4() {
             <div className="h-full w-full rounded-2xl border border-slate-200 bg-white p-4 flex flex-col">
               <SectionTitle title="Configuration" subtitle="Auto hides advanced parameters." />
 
-              {/* Mode toggle FIRST */}
               <div className="mt-4">
                 <div className="flex items-center justify-between gap-3">
                   <div>
                     <div className="text-xs font-semibold text-slate-900">Mode</div>
-                    <div className="mt-1 text-xs text-slate-500">
-                      Auto = defaults. Manual = set threshold &amp; PON.
-                    </div>
+                    <div className="mt-1 text-xs text-slate-500">Auto = defaults. Manual = set threshold &amp; PON.</div>
                   </div>
                   <ModeToggle
                     value={cfg.mode}
-                    onChange={(v) => setCfg((p) => ({ ...p, mode: v }))}
+                    onChange={(v) => commitCfg({ ...cfg, mode: v })}
                   />
                 </div>
               </div>
 
-              {/* Manual-only settings */}
+              {/* AUTO panel */}
+              {cfg.mode === 'auto' ? (
+                <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                  <div className="text-xs font-semibold text-slate-900">Auto mode uses default threshold and PON.</div>
+                  <div className="mt-1 text-xs text-slate-600">
+                    Defaults: threshold <span className="font-semibold">{DEFAULT_CONFIG.thresholdPct}</span>, PON{' '}
+                    <span className="font-semibold">{DEFAULT_CONFIG.pon}</span>.
+                  </div>
+                </div>
+              ) : null}
+
+              {/* MANUAL panel */}
               {cfg.mode === 'manual' ? (
-                <div className="mt-5 space-y-5">
+                <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-4 space-y-4">
                   <div>
-                    <div className="text-xs font-semibold text-slate-900">MRD threshold</div>
-                    <div className="mt-1 text-xs text-slate-500">Below threshold = satisfactory.</div>
-                    <div className="mt-2 flex items-center gap-2">
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <div className="text-xs font-semibold text-slate-900">Threshold</div>
+                        <div className="mt-1 text-xs text-slate-600">MRD call threshold (fraction).</div>
+                      </div>
                       <input
                         type="number"
-                        step={0.01}
-                        value={cfg.thresholdPct}
-                        onChange={(e) =>
-                          setCfg((p) => ({
-                            ...p,
-                            thresholdPct: Number(e.target.value) || p.thresholdPct,
-                          }))
-                        }
-                        className="w-32 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm"
+                        value={threshold}
+                        min={0.001}
+                        max={0.2}
+                        step={0.001}
+                        onChange={(e) => {
+                          const v = clamp(Number(e.target.value || '0'), 0.001, 0.2);
+                          commitCfg({ ...cfg, thresholdPct: v });
+                        }}
+                        className="w-24 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-900"
                       />
-                      <span className="text-sm text-slate-600">%</span>
+                    </div>
+
+                    <input
+                      type="range"
+                      min={0.001}
+                      max={0.2}
+                      step={0.001}
+                      value={threshold}
+                      onChange={(e) => {
+                        const v = clamp(Number(e.target.value || '0'), 0.001, 0.2);
+                        commitCfg({ ...cfg, thresholdPct: v });
+                      }}
+                      className="mt-3 w-full"
+                    />
+
+                    <div className="mt-2 text-[11px] text-slate-500">
+                      Tip: typical demo range 0.01–0.05. Current: <span className="font-semibold text-slate-700">{threshold}</span>
                     </div>
                   </div>
 
                   <div>
-                    <div className="text-xs font-semibold text-slate-900">PON (panel of normals)</div>
-                    <div className="mt-1 text-xs text-slate-500">Used mainly for CNV denoising.</div>
+                    <div className="text-xs font-semibold text-slate-900">Panel of Normals (PON)</div>
+                    <div className="mt-1 text-xs text-slate-600">Choose a reference noise model.</div>
+
                     <select
-                      value={cfg.pon}
-                      onChange={(e) => setCfg((p) => ({ ...p, pon: e.target.value }))}
-                      className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm"
+                      value={cfg.pon ?? DEFAULT_CONFIG.pon}
+                      onChange={(e) => commitCfg({ ...cfg, pon: e.target.value })}
+                      className="mt-3 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-900"
                     >
-                      <option value="default_v1">Default PON v1</option>
-                      <option value="pon_crc_v1">CRC PON v1</option>
-                      <option value="pon_crc_v2">CRC PON v2</option>
+                      <option value="default_v1">Default PON_v1</option>
+                      <option value="default_v2">CRC PON_v1</option>
+                      <option value="strict_v1">CRC PON_v2</option>
                     </select>
                   </div>
                 </div>
-              ) : (
-                <div className="mt-5 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-xs text-slate-700">
-                  Auto mode uses default threshold and PON. Switch to Manual to customize.
-                </div>
-              )}
+              ) : null}
 
-              <div className="mt-auto pt-6 flex justify-end">
+              <div className="mt-auto pt-6 flex items-center justify-end">
                 <button
                   type="button"
                   onClick={handleRun}
                   disabled={!canRun}
                   className={[
-                    'rounded-xl px-6 py-2 text-sm font-semibold',
-                    canRun
-                      ? 'bg-sky-600 text-white hover:bg-sky-700'
-                      : 'cursor-not-allowed bg-slate-100 text-slate-400 border border-slate-200',
+                    'rounded-xl px-5 py-2 text-sm font-semibold transition',
+                    canRun ? 'bg-sky-600 text-white hover:bg-sky-700' : 'bg-slate-200 text-slate-500 cursor-not-allowed',
                   ].join(' ')}
                 >
                   Run analysis

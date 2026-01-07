@@ -399,12 +399,11 @@ export function Step3() {
 
   return (
     <div className="space-y-5">
-      <div className="text-lg font-semibold">Step 3 — Add plasma sample</div>
+      
 
       <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-slate-600">
         <div>
           Patient: <span className="font-medium text-slate-900">{patientLabel}</span>{' '}
-          <span className="text-slate-400">({patientId})</span>
         </div>
         <div className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs text-slate-600">
           Surgery date: <span className="font-semibold text-slate-900">{surgeryDate || '—'}</span>

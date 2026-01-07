@@ -10,13 +10,13 @@ export const MODULES: ModuleCard[] = [
   {
     key: 'LIQUID_BIOPSY',
     title: 'Liquid biopsy',
-    subtitle: 'Coming soon • workflow will be added',
+    subtitle: '', // убрал “Coming soon • workflow will be added”
     enabled: false,
   },
   {
     key: 'PRENATAL',
     title: 'Prenatal screening',
-    subtitle: 'Coming soon • workflow will be added',
+    subtitle: '', // убрал “Coming soon • workflow will be added”
     enabled: false,
   },
 ];

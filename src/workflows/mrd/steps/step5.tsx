@@ -1,3 +1,5 @@
+// src/workflows/mrd/steps/step5.tsx
+
 'use client';
 
 import React from 'react';
@@ -303,70 +305,53 @@ function TimelinePlot({
           </linearGradient>
         </defs>
 
-        <path
-          d={`M ${padL} ${padT} L ${padL} ${H - padB} L ${W - padR} ${H - padB}`}
-          fill="none"
-          stroke={AXIS}
-        />
+        <path d={areaPath} fill={`url(#${gradId})`} stroke="none" />
+
+        <path d={dCurve} fill="none" stroke={BLUE_LINE} strokeWidth="2.2" strokeLinecap="round" />
+
+        {pxPts.map((p, i) => (
+          <g key={`p_${i}`}>
+            <circle cx={p.x} cy={p.y} r="4" fill="white" stroke={BLUE_LINE} strokeWidth="2" />
+          </g>
+        ))}
+
+        <line x1={padL} y1={yThr} x2={W - padR} y2={yThr} stroke={AXIS} strokeDasharray="4 4" />
+        <text x={W - padR - 4} y={yThr - 6} textAnchor="end" fontSize="10" fill={LABEL}>
+          Threshold {fmtPct(threshold)}
+        </text>
+
+        {hasSurgery ? (
+          <>
+            <line x1={xSurg} y1={padT} x2={xSurg} y2={H - padB} stroke={AXIS} strokeDasharray="4 4" />
+            <text x={xSurg + 6} y={padT + 12} fontSize="10" fill={BLUE_TEXT}>
+              SURGERY
+            </text>
+          </>
+        ) : null}
 
         {ticks.map((v, i) => {
           const y = sy(v);
-          const isEdge = i === 0 || i === ticks.length - 1;
           return (
             <g key={`yt_${i}`}>
               <line x1={padL - 6} y1={y} x2={padL} y2={y} stroke={AXIS} />
-              <line x1={padL} y1={y} x2={W - padR} y2={y} stroke={AXIS} opacity={isEdge ? 0.35 : 0.15} />
-              <text x={padL - 10} y={y + 4} textAnchor="end" fontSize="10" fill={LABEL}>
+              <text x={padL - 10} y={y + 3} textAnchor="end" fontSize="10" fill={LABEL}>
                 {fmtPct(v)}
               </text>
             </g>
           );
         })}
 
-        <line x1={padL} y1={yThr} x2={W - padR} y2={yThr} stroke={BLUE_LINE} strokeDasharray="6 5" opacity={0.55} />
-        <text x={W - padR} y={yThr - 8} textAnchor="end" fontSize="11" fill={LABEL}>
-          Threshold {fmtPct(threshold)}
-        </text>
+        <line x1={padL} y1={padT} x2={padL} y2={H - padB} stroke={AXIS} />
+        <line x1={padL} y1={H - padB} x2={W - padR} y2={H - padB} stroke={AXIS} />
 
-        {hasSurgery ? (
-          <>
-            <line x1={xSurg} y1={padT} x2={xSurg} y2={H - padB} stroke={BLUE_LINE} strokeDasharray="4 4" opacity={0.9} />
-            <text x={xSurg} y={padT - 10} textAnchor="middle" fontSize="11" fill={BLUE_TEXT}>
-              SURGERY
+        {points.map((p, i) => {
+          const x = pxPts[i]?.x ?? padL;
+          return (
+            <text key={`xt_${i}`} x={x} y={H - 10} textAnchor="middle" fontSize="10" fill={LABEL}>
+              {p.date || '—'}
             </text>
-          </>
-        ) : null}
-
-        <path d={areaPath} fill={`url(#${gradId})`} />
-        <path d={dCurve} fill="none" stroke={BLUE_LINE} strokeWidth="2.4" />
-
-        {points.map((p, i) => (
-          <g key={`${p.date}_${i}`}>
-            <circle cx={sx(p.t)} cy={sy(p.y)} r={4} fill="#ffffff" stroke={BLUE_LINE} strokeWidth="2" />
-          </g>
-        ))}
-
-        {(() => {
-          const idxToShow = new Set<number>();
-          if (points.length <= 4) {
-            points.forEach((_, i) => idxToShow.add(i));
-          } else {
-            idxToShow.add(0);
-            idxToShow.add(points.length - 1);
-            idxToShow.add(Math.floor(points.length / 2));
-          }
-
-          return points.map((p, i) => {
-            if (!idxToShow.has(i)) return null;
-            const x = sx(p.t);
-            const y = H - 8;
-            return (
-              <text key={`d_${i}`} x={x} y={y} textAnchor="middle" fontSize="10" fill={LABEL}>
-                {p.date || '—'}
-              </text>
-            );
-          });
-        })()}
+          );
+        })}
       </svg>
     </div>
   );
@@ -550,10 +535,9 @@ export function Step5() {
     <div className="space-y-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <div className="text-lg font-semibold">Step 5 — Results</div>
-          <div className="text-sm text-slate-600">
+          <div className="text-sm text-slate-700">
             Patient: <span className="font-medium text-slate-900">{patientLabel}</span>{' '}
-            <span className="text-slate-400">({patientId})</span>
+
           </div>
         </div>
 
@@ -593,21 +577,32 @@ export function Step5() {
         <Card className="p-5">
           <div className="flex items-center justify-between gap-3">
             <div className="text-sm font-semibold text-slate-900">Tumor fraction timeline (demo)</div>
-            <div className="text-xs text-slate-500">{points.length ? `Range: ${fmtPct(minY)} → ${fmtPct(maxY)}` : 'Range: —'}</div>
+            <div className="text-xs text-slate-500">
+              {points.length ? `Range: ${fmtPct(minY)} → ${fmtPct(maxY)}` : 'Range: —'}
+            </div>
           </div>
 
           <div className="mt-4">
             <TimelinePlot points={points} threshold={threshold} surgeryDate={surgeryDate} />
           </div>
 
+          {/* ✅ Symmetric “readout” cards */}
           {points.length ? (
-            <div className="mt-4 grid grid-cols-12 gap-3">
+            <div
+              className="mt-5 grid gap-3"
+              style={{
+                gridTemplateColumns: `repeat(${Math.min(points.length, 4)}, minmax(0, 1fr))`,
+              }}
+            >
               {points.map((p, i) => (
-                <div key={`${p.date}_${i}`} className="col-span-12 sm:col-span-6 lg:col-span-3">
-                  <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
-                    <div className="text-xs font-semibold text-slate-800">{p.label}</div>
-                    <div className="mt-1 text-xs text-slate-500">{p.date || '—'}</div>
-                    <div className="mt-2 text-sm font-semibold text-slate-900">{fmtPct(p.y)}</div>
+                <div
+                  key={`${p.date}_${i}`}
+                  className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 flex flex-col min-h-24"
+                >
+                  <div className="text-xs font-semibold text-slate-800 leading-tight">{p.label}</div>
+                  <div className="mt-1 text-xs text-slate-500">{p.date || '—'}</div>
+                  <div className="mt-auto pt-3 text-base font-semibold text-slate-900 tabular-nums">
+                    {fmtPct(p.y)}
                   </div>
                 </div>
               ))}

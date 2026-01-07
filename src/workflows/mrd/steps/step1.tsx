@@ -4,6 +4,7 @@ import React from "react";
 import { Card } from "@/components/ui/Card";
 import { useWorkflow } from "@/components/workflow/WorkflowContext";
 import { PatientsStore, type StoredPatient } from "@/store/patientsStore";
+import { ImprintModal, type Modules } from "@/components/mrd/ImprintModal";
 
 const INDICATION_OPTIONS = [
   { value: "", label: "Select indication…" },
@@ -14,16 +15,25 @@ const INDICATION_OPTIONS = [
 ];
 
 export function Step1() {
-  const { state, setSelectedPatient, setCaseId, setIndication, toggleSurgeryDate, setSurgeryDate } =
-    useWorkflow();
+  const {
+    state,
+    setSelectedPatient,
+    setCaseId,
+    setIndication,
+    toggleSurgeryDate,
+    setSurgeryDate,
+    setActiveStepId,
+  } = useWorkflow();
 
-  // PatientsStore doesn't rerender UI automatically.
   const [storeVersion, setStoreVersion] = React.useState(0);
+  const [imprintOpen, setImprintOpen] = React.useState(false);
 
-  // Unlock form only after Case ID has been applied (blur/enter)
   const [caseApplied, setCaseApplied] = React.useState(() => {
     const hasCase = !!(state.caseId || "").trim();
-    const hasAnyMeta = !!(state.indication || "").trim() || !!state.surgeryDate || !!state.selectedPatient;
+    const hasAnyMeta =
+      !!(state.indication || "").trim() ||
+      !!state.surgeryDate ||
+      !!state.selectedPatient;
     return hasCase && hasAnyMeta;
   });
 
@@ -37,17 +47,11 @@ export function Step1() {
     toggleSurgeryDate(desired);
   }
 
-  // If user edits Case ID, lock again until apply happens
   function onCaseIdChange(v: string) {
     setCaseId(v);
     setCaseApplied(false);
   }
 
-  /**
-   * Auto apply on blur/enter:
-   * - If exists: load stored values
-   * - If not exists: create draft (empty) and unlock
-   */
   function applyCaseId(raw?: string) {
     const id = (raw ?? state.caseId ?? "").trim();
     if (!id) return;
@@ -57,7 +61,6 @@ export function Step1() {
     if (stored) {
       setSelectedPatient({ id: stored.id, label: stored.label || stored.id });
       setCaseId(stored.id);
-
       setIndication(stored.indication || "");
 
       ensureHasSurgeryDate(!!stored.hasSurgeryDate);
@@ -73,7 +76,6 @@ export function Step1() {
       return;
     }
 
-    // New case draft: do not auto-fill
     setSelectedPatient({ id, label: id });
     setCaseId(id);
 
@@ -85,38 +87,8 @@ export function Step1() {
     setStoreVersion((v) => v + 1);
   }
 
-  function demoFill() {
-    setIndication("Colorectal cancer");
-    ensureHasSurgeryDate(true);
-
-    const d = new Date();
-    d.setDate(d.getDate() - 30);
-    setSurgeryDate(d.toISOString().slice(0, 10));
-  }
-
-  function saveSubject(): boolean {
-    const caseId = (state.caseId || "").trim();
-    if (!caseId) return false;
-
-    const indicationOk = (state.indication || "").trim().length > 0;
-    const surgeryOk = !state.hasSurgeryDate || !!state.surgeryDate;
-    if (!indicationOk || !surgeryOk) return false;
-
-    PatientsStore.upsert({
-      id: caseId,
-      label: state.selectedPatient?.label || caseId,
-      indication: state.indication || "",
-      hasSurgeryDate: state.hasSurgeryDate,
-      surgeryDate: state.hasSurgeryDate ? state.surgeryDate : "",
-    });
-
-    setStoreVersion((v) => v + 1);
-    return true;
-  }
-
   const caseId = (state.caseId || "").trim();
   const hasCaseId = !!caseId;
-
   const fieldsUnlocked = caseApplied;
 
   const isValid =
@@ -127,177 +99,284 @@ export function Step1() {
 
   const stored = hasCaseId ? findStoredById(caseId) : undefined;
 
-  const imprintText = stored?.imprintCreated ? "Yes" : "No";
-  const tumorText =
-    stored?.tumorAvailable === true ? "Yes" : stored?.tumorAvailable === false ? "No" : "Unknown";
+  const imprintReady = !!stored?.imprintCreated;
+  const tumorText = imprintReady
+    ? "Yes"
+    : stored?.tumorAvailable === false
+    ? "No"
+    : "Yes";
 
-  // Light/minimal UI helpers
+  const nextStepIdPreview =
+    imprintReady || stored?.tumorAvailable === false ? "step3" : "step2";
+  const nextStepLabel =
+    nextStepIdPreview === "step3"
+      ? "Step 3 (Add plasma sample)"
+      : "Step 2 (Create imprint)";
+
   const panelBase = "rounded-2xl border border-slate-200 bg-white p-5";
   const label = "text-xs font-medium text-slate-500";
 
   const inputEnabled =
-    "mt-2 w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none placeholder:text-slate-400 focus:border-slate-300";
+    "w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none placeholder:text-slate-400 focus:border-slate-300";
   const inputDisabled =
-    "mt-2 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-400 outline-none placeholder:text-slate-300 cursor-not-allowed";
+    "w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-400 outline-none cursor-not-allowed";
 
   const selectEnabled =
-    "mt-2 w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none focus:border-slate-300";
+    "w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none focus:border-slate-300";
   const selectDisabled =
-    "mt-2 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-400 outline-none cursor-not-allowed";
+    "w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-400 outline-none cursor-not-allowed";
 
-  const hint = "mt-2 text-xs text-slate-500";
+  const btnGhost =
+    "inline-flex items-center justify-center rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-900 hover:bg-slate-50";
+  const btnGhostDisabled =
+    "inline-flex items-center justify-center rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-400 cursor-not-allowed";
 
-  const actionCard = "rounded-2xl border border-slate-200 bg-white px-5 py-4 text-left hover:bg-slate-50 transition-colors";
+  // Symmetric action cards (same geometry)
+  const actionCard =
+    "w-full rounded-2xl border border-slate-200 bg-white p-5 text-left shadow-[0_10px_30px_rgba(15,23,42,0.08)] flex flex-col min-h-[160px]";
   const actionTitle = "text-sm font-semibold text-slate-900";
-  const actionSub = "mt-1 text-xs text-slate-500";
+  const actionSub = "mt-1 text-xs text-slate-500 min-h-[32px]";
+  const actionFooter = "mt-auto pt-4 flex items-center justify-center";
 
-  const btnPrimary =
-    "inline-flex items-center justify-center rounded-xl bg-sky-600 px-3 py-2 text-xs font-semibold text-white hover:bg-sky-500 disabled:bg-slate-100 disabled:text-slate-400";
-  const btnSecondary =
-    "inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:bg-slate-50 disabled:text-slate-400";
+  const actionBtnBase =
+    "inline-flex items-center justify-center h-10 w-[220px] rounded-2xl text-sm font-semibold";
+  const actionBtnPrimary = `${actionBtnBase} bg-sky-600 text-white hover:bg-sky-700`;
+  const actionBtnSecondary = `${actionBtnBase} border border-slate-200 bg-white text-slate-900 hover:bg-slate-50`;
 
-  // Disabled “section” look (subtle grey)
-  const lockedPanelTone = !fieldsUnlocked ? "opacity-70" : "";
+  function demoFill() {
+    if (!fieldsUnlocked) return;
+    setIndication("Colorectal cancer");
+    ensureHasSurgeryDate(true);
+    setSurgeryDate(new Date().toISOString().slice(0, 10));
+  }
+
+  function saveAndContinue(): boolean {
+    const cid = (state.caseId || "").trim();
+    if (!cid) return false;
+
+    const indicationOk = (state.indication || "").trim().length > 0;
+    const surgeryOk = !state.hasSurgeryDate || !!state.surgeryDate;
+    if (!indicationOk || !surgeryOk) return false;
+
+    PatientsStore.upsert({
+      id: cid,
+      label: state.selectedPatient?.label || cid,
+      indication: state.indication || "",
+      hasSurgeryDate: state.hasSurgeryDate,
+      surgeryDate: state.hasSurgeryDate ? state.surgeryDate : "",
+    });
+
+    const after = PatientsStore.findById(cid);
+
+    if (after?.imprintCreated || after?.tumorAvailable === false) {
+      setActiveStepId("step3");
+    } else {
+      setActiveStepId("step2");
+    }
+
+    setStoreVersion((v) => v + 1);
+    return true;
+  }
+
+  const modules: Modules = {
+    LOH: stored?.imprintModules?.LOH ?? "done",
+    CNV: stored?.imprintModules?.CNV ?? "done",
+    SNV: stored?.imprintModules?.SNV ?? "done",
+  };
 
   return (
-    <div className="space-y-5">
-      <Card className="p-6">
-        <div className="text-sm font-semibold text-slate-900">Create Subject / Case</div>
+    <div className="space-y-6">
+      <Card className={panelBase}>
+        <div className="grid gap-4 md:grid-cols-2">
+          {/* Case ID + Apply */}
+          <div className="md:col-span-2">
+            <div className={label}>Case ID / Patient ID</div>
 
-        <div className="mt-5 grid grid-cols-1 gap-4 md:grid-cols-2">
-          {/* Subject ID (always enabled) */}
-          <div className={panelBase}>
-            <div className={label}>Subject ID</div>
-            <input
-              value={state.caseId}
-              onChange={(e) => onCaseIdChange(e.target.value)}
-              onBlur={(e) => applyCaseId(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") {
-                  e.preventDefault();
-                  applyCaseId((e.target as HTMLInputElement).value);
-                }
-              }}
-              placeholder="e.g., CRC-0465"
-              className={inputEnabled}
-            />
-            {!fieldsUnlocked ? <div className={hint}>Enter an ID to unlock the form.</div> : null}
+            <div className="mt-2 flex gap-2">
+              <input
+                value={state.caseId || ""}
+                onChange={(e) => onCaseIdChange(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") e.preventDefault();
+                }}
+                placeholder="e.g. 100"
+                className={inputEnabled}
+              />
+              <button
+                type="button"
+                onClick={() => applyCaseId()}
+                disabled={!hasCaseId}
+                className={hasCaseId ? btnGhost : btnGhostDisabled}
+              >
+                Apply
+              </button>
+            </div>
+
+            <div className="mt-2 text-xs text-slate-500">
+              {fieldsUnlocked
+                ? "Unlocked"
+                : "Apply Case ID to unlock fields below"}
+            </div>
           </div>
 
           {/* Indication */}
-          <div className={[panelBase, lockedPanelTone].join(" ")}>
+          <div>
             <div className={label}>Indication</div>
             <select
-              value={state.indication}
+              value={state.indication || ""}
               onChange={(e) => setIndication(e.target.value)}
-              className={fieldsUnlocked ? selectEnabled : selectDisabled}
               disabled={!fieldsUnlocked}
+              className={
+                fieldsUnlocked
+                  ? `${selectEnabled} mt-2`
+                  : `${selectDisabled} mt-2`
+              }
             >
-              {INDICATION_OPTIONS.map((o) => (
-                <option key={o.label} value={o.value}>
-                  {o.label}
+              {INDICATION_OPTIONS.map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}
                 </option>
               ))}
             </select>
           </div>
 
           {/* Surgery date */}
-          <div className={[panelBase, lockedPanelTone].join(" ")}>
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <div className={label}>Surgery date</div>
-                <div className="mt-1 text-xs text-slate-500">Optional — used to label plasma timepoints in Step 3.</div>
-              </div>
-
-              <label
-                className={[
-                  "flex select-none items-center gap-2 text-xs font-medium",
-                  fieldsUnlocked ? "text-slate-600" : "text-slate-400 cursor-not-allowed",
-                ].join(" ")}
-              >
+          <div>
+            <div className="flex items-center justify-between gap-3">
+              <div className={label}>Surgery date</div>
+              <label className="flex items-center gap-2 text-xs text-slate-600">
                 <input
                   type="checkbox"
-                  checked={state.hasSurgeryDate}
-                  onChange={(e) => {
-                    const v = e.target.checked;
-                    ensureHasSurgeryDate(v);
-                    if (!v) setSurgeryDate("");
-                  }}
+                  checked={!!state.hasSurgeryDate}
                   disabled={!fieldsUnlocked}
+                  onChange={(e) => ensureHasSurgeryDate(e.target.checked)}
                 />
-                Has date
+                Known
               </label>
             </div>
-
             <input
               type="date"
-              value={state.surgeryDate}
+              value={state.surgeryDate || ""}
               onChange={(e) => setSurgeryDate(e.target.value)}
-              className={fieldsUnlocked && state.hasSurgeryDate ? inputEnabled : inputDisabled}
               disabled={!fieldsUnlocked || !state.hasSurgeryDate}
+              className={[
+                "mt-2",
+                fieldsUnlocked && state.hasSurgeryDate
+                  ? inputEnabled
+                  : inputDisabled,
+              ].join(" ")}
             />
-
-            {fieldsUnlocked && state.hasSurgeryDate && !state.surgeryDate ? (
-              <div className="mt-2 text-xs text-amber-700">Select a surgery date (or disable “Has date”).</div>
-            ) : null}
           </div>
 
-          {/* Stored status */}
-          <div className={[panelBase, lockedPanelTone].join(" ")} key={storeVersion}>
-            <div className={label}>Stored status</div>
-
-            <div className="mt-3 grid grid-cols-2 gap-3">
-              <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
-                <div className={label}>Imprint ready</div>
-                <div className="mt-1 text-sm font-semibold text-slate-900">
-                  {fieldsUnlocked && hasCaseId ? imprintText : "—"}
-                </div>
-              </div>
-
-              <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
-                <div className={label}>Tumor available</div>
-                <div className="mt-1 text-sm font-semibold text-slate-900">
-                  {fieldsUnlocked && hasCaseId ? tumorText : "—"}
-                </div>
+          {/* Status blocks */}
+          <div className="md:col-span-2 grid gap-3 md:grid-cols-2">
+            <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+              <div className={label}>Tumor available</div>
+              <div className="mt-1 text-sm font-semibold text-slate-900">
+                {fieldsUnlocked && hasCaseId ? tumorText : "—"}
               </div>
             </div>
 
-            <div className={hint}>Shows saved data for this Subject ID.</div>
+            <div
+              className={[
+                "rounded-2xl px-4 py-3 border",
+                imprintReady
+                  ? "border-emerald-300 bg-emerald-50"
+                  : "border-slate-200 bg-slate-50",
+              ].join(" ")}
+            >
+              <div className={label}>Imprint ready</div>
+              <div className="mt-1 flex items-center justify-between gap-3">
+                <div
+                  className={[
+                    "text-sm font-semibold",
+                    imprintReady ? "text-emerald-700" : "text-slate-900",
+                  ].join(" ")}
+                >
+                  {fieldsUnlocked && hasCaseId
+                    ? imprintReady
+                      ? "Yes"
+                      : "No"
+                    : "—"}
+                </div>
+
+                {fieldsUnlocked && hasCaseId && imprintReady ? (
+                  <button
+                    type="button"
+                    onClick={() => setImprintOpen(true)}
+                    className="rounded-xl border border-emerald-300 bg-white px-3 py-1.5 text-xs font-semibold text-emerald-700 hover:bg-emerald-50"
+                  >
+                    View imprint →
+                  </button>
+                ) : null}
+              </div>
+            </div>
           </div>
-        </div>
-
-        {/* Action cards (2) */}
-        <div className="mt-5 grid grid-cols-1 gap-4 md:grid-cols-2">
-          <button
-            type="button"
-            onClick={() => saveSubject()}
-            disabled={!isValid}
-            className={[actionCard, isValid ? "cursor-pointer" : "opacity-60 cursor-not-allowed"].join(" ")}
-          >
-            <div className={actionTitle}>Save subject</div>
-            <div className={actionSub}>Saves the record and enables sample onboarding.</div>
-            <div className="mt-3">
-              <span className={btnPrimary}>Save</span>
-            </div>
-          </button>
-
-          <button
-            type="button"
-            onClick={demoFill}
-            disabled={!fieldsUnlocked}
-            className={[
-              actionCard,
-              fieldsUnlocked ? "cursor-pointer" : "opacity-60 cursor-not-allowed",
-            ].join(" ")}
-          >
-            <div className={actionTitle}>Use demo subject</div>
-            <div className={actionSub}>Autofill a realistic indication and surgery date to continue.</div>
-            <div className="mt-3">
-              <span className={btnSecondary}>Demo fill</span>
-            </div>
-          </button>
         </div>
       </Card>
+
+      {/* ACTIONS — perfectly symmetric */}
+      <div className="grid gap-4 md:grid-cols-2">
+        {/* Demo fill */}
+        <button
+          type="button"
+          onClick={demoFill}
+          disabled={!fieldsUnlocked}
+          className={[
+            actionCard,
+            fieldsUnlocked ? "" : "opacity-60 cursor-not-allowed",
+          ].join(" ")}
+        >
+          <div className={actionTitle}>Demo fill</div>
+          <div className={actionSub}>
+            Auto-fills indication + surgery date (demo).
+          </div>
+
+          <div className={actionFooter}>
+            <span className={actionBtnSecondary}>Demo fill</span>
+          </div>
+        </button>
+
+        {/* Save & Continue */}
+        <button
+          type="button"
+          onClick={() => saveAndContinue()}
+          disabled={!isValid}
+          className={[
+            actionCard,
+            isValid ? "" : "opacity-60 cursor-not-allowed",
+          ].join(" ")}
+        >
+          <div className={actionTitle}>Save &amp; Continue</div>
+          <div className={actionSub}>
+            Saves the case and continues to{" "}
+            <span className="font-semibold text-slate-700">
+              {nextStepLabel}
+            </span>
+            .
+          </div>
+
+          <div className={actionFooter}>
+            <span className={actionBtnPrimary}>Continue →</span>
+          </div>
+        </button>
+      </div>
+
+      <ImprintModal
+        open={imprintOpen}
+        onClose={() => setImprintOpen(false)}
+        patientName={state.selectedPatient?.label || caseId || "—"}
+        imprintCreatedAt={stored?.imprintCreatedAt}
+        modules={modules}
+        onOpenModule={(k: keyof Modules) => {
+          setImprintOpen(false);
+          if (k === "LOH") setActiveStepId("step2_loh");
+          if (k === "CNV") setActiveStepId("step2_cnv");
+          if (k === "SNV") setActiveStepId("step2_snv");
+        }}
+      />
+
+      <div className="hidden">{storeVersion}</div>
     </div>
   );
 }

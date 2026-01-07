@@ -24,17 +24,17 @@ function ProgressBar({ running }: { running: boolean }) {
       <div className="h-2 w-full overflow-hidden rounded-full bg-slate-100">
         <div className="h-2 w-1/3 animate-pulse rounded-full bg-slate-300" />
       </div>
-      <div className="mt-2 text-xs text-slate-500">AI-denoise → segmentation → scoring…</div>
+      <div className="mt-2 text-xs text-slate-500">AI-denoise → BAF windows → LOH calls…</div>
     </div>
   );
 }
 
-export function Step4Cnv() {
+export function Step4Loh() {
   const { state, activeStepId, setActiveStepId } = useWorkflow();
 
   const patientId = state.selectedPatient?.id ?? '';
   const patientLabel = (state.selectedPatient?.label || patientId).trim();
-  const isHere = activeStepId === 'step4_cnv';
+  const isHere = activeStepId === 'step4_loh';
 
   const upsertPatient = React.useCallback(
     (patch: Partial<StoredPatient>) => {
@@ -61,12 +61,18 @@ export function Step4Cnv() {
     const p = PatientsStore.findById(patientId);
     if (!p?.analysisRunStarted) return;
 
-    const st = p.analysisChannels?.CNV ?? 'idle';
+    // Guard: LOH is only meaningful in tumor-informed (imprintCreated)
+    if (!p.imprintCreated) {
+      setActiveStepId('step4_snv');
+      return;
+    }
+
+    const st = p.analysisChannels?.LOH ?? 'idle';
     if (st === 'done') return;
 
     const startChannels = {
       ...(p.analysisChannels ?? {}),
-      CNV: 'running',
+      LOH: 'running',
     } satisfies Partial<Record<AnalysisChannelKey, AnalysisChannelState>>;
 
     upsertPatient({ analysisChannels: startChannels });
@@ -74,36 +80,14 @@ export function Step4Cnv() {
     const timer = window.setTimeout(() => {
       const p2 = PatientsStore.findById(patientId);
 
-      const imprintCreated = !!p2?.imprintCreated;
-      const imprintSkipped = !!p2?.imprintSkipped;
-
       const nextChannels = {
         ...(p2?.analysisChannels ?? {}),
-        CNV: 'done',
+        LOH: 'done',
       } satisfies Partial<Record<AnalysisChannelKey, AnalysisChannelState>>;
 
-      const lohDone = (nextChannels.LOH ?? 'idle') === 'done';
-      const snvDone = (nextChannels.SNV ?? 'idle') === 'done';
-      const cnvDone = (nextChannels.CNV ?? 'idle') === 'done';
+      upsertPatient({ analysisChannels: nextChannels });
 
-      // Completion rules:
-      // - tumor-informed (imprintCreated): LOH + CNV + SNV
-      // - ImprintAI+ (imprintSkipped): SNV + CNV
-      const analysisCompleted = imprintCreated
-        ? lohDone && snvDone && cnvDone
-        : imprintSkipped
-          ? snvDone && cnvDone
-          : false;
-
-      upsertPatient({
-        analysisChannels: nextChannels,
-        analysisCompleted,
-      });
-
-      // Next step:
-      // - tumor-informed: CNV → SNV
-      // - no tumor: CNV is last → Results
-      setActiveStepId(imprintCreated ? 'step4_snv' : 'step5');
+      setActiveStepId('step4_cnv');
     }, PROCESS_TIME_MS);
 
     return () => window.clearTimeout(timer);
@@ -112,48 +96,34 @@ export function Step4Cnv() {
   if (!patientId) {
     return (
       <div className="space-y-2">
-        <div className="text-lg font-semibold">CNV channel</div>
+        <div className="text-lg font-semibold">BAF / LOH channel</div>
         <div className="text-sm text-slate-600">Select a patient in Step 1 first.</div>
       </div>
     );
   }
 
   const p = PatientsStore.findById(patientId);
-  const st = p?.analysisChannels?.CNV ?? 'idle';
+  const st = p?.analysisChannels?.LOH ?? 'idle';
 
-  const imprintCreated = !!p?.imprintCreated;
-  const imprintSkipped = !!p?.imprintSkipped;
   const indication = p?.indication || state.indication;
-
-  const mode = imprintCreated
-    ? 'tumor-informed'
-    : imprintSkipped
-      ? 'ImprintAI+ (denoise-only)'
-      : '—';
-
-  const title = imprintCreated
-    ? 'AI-denoise + signal enrichment + CNV inference'
-    : 'ImprintAI+ denoise-only + CNV inference';
-
-  const subtitle = imprintCreated
-    ? `Signal enrichment model: ${getEnrichmentModelLabel(indication)}`
-    : 'No signal enrichment (not cancer-type dependent)';
-
-  const nextLabel = imprintCreated ? 'step4_snv' : 'step5';
 
   return (
     <div className="space-y-4">
       <div className="text-sm text-slate-600">
         Patient: <span className="font-medium text-slate-900">{patientLabel}</span>{' '}
          • Mode:{' '}
-        <span className="font-medium text-slate-900">{mode}</span>
+        <span className="font-medium text-slate-900">tumor-informed</span>
       </div>
 
       <Card className="p-5">
         <div className="flex items-start justify-between gap-3">
           <div>
-            <div className="text-sm font-semibold text-slate-900">{title}</div>
-            <div className="mt-1 text-xs text-slate-500">{subtitle}</div>
+            <div className="text-sm font-semibold text-slate-900">
+              AI-denoise + signal enrichment + BAF/LOH inference
+            </div>
+            <div className="mt-1 text-xs text-slate-500">
+              Signal enrichment model: {getEnrichmentModelLabel(indication)}
+            </div>
           </div>
           <div className="text-xs text-slate-600">
             {st === 'done' ? (
@@ -167,14 +137,10 @@ export function Step4Cnv() {
         </div>
 
         <ProgressBar running={st === 'running'} />
-        {st === 'done' ? (
-          <div className="mt-4 text-xs text-emerald-700">✓ CNV channel completed</div>
-        ) : null}
+        {st === 'done' ? <div className="mt-4 text-xs text-emerald-700">✓ LOH channel completed</div> : null}
       </Card>
 
-      <div className="text-xs text-slate-500">
-        Time: {PROCESS_TIME_MS / 1000}s • next: {nextLabel}
-      </div>
+      <div className="text-xs text-slate-500">Time: {PROCESS_TIME_MS / 1000}s • next: step4_cnv</div>
     </div>
   );
 }

@@ -3,7 +3,7 @@ export function Pill({
   variant = 'neutral',
 }: {
   children: React.ReactNode;
-  variant?: 'neutral' | 'on' | 'off' | 'locked' | 'success' | 'info' | 'warning' | 'default' | 'success';
+  variant?: 'neutral' | 'on' | 'off' | 'locked' | 'success' | 'info' | 'warning' | 'default' | 'soft';
 }) {
   const cls =
     variant === 'on'
@@ -12,7 +12,7 @@ export function Pill({
       ? 'bg-slate-50 text-slate-600 border-slate-200'
       : variant === 'locked'
       ? 'bg-slate-100 text-slate-500 border-slate-200'
-      : 'bg-slate-50 text-slate-700 border-slate-200';
+      : 'bg-white text-slate-700 border-slate-200';
 
   return (
     <span
