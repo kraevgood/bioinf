@@ -36,12 +36,79 @@ export type ImprintModuleState = "idle" | "running" | "done";
 export type AnalysisChannelKey = "SNV" | "CNV" | "LOH";
 export type AnalysisChannelState = "idle" | "running" | "done";
 
-// ✅ NEW: Step4 configuration (demo)
+// ✅ Step4 configuration (demo)
 export type AnalysisConfig = {
   mode: "auto" | "manual";
   thresholdPct: number; // e.g. 0.03 means 0.03%
   channels: Partial<Record<AnalysisChannelKey, boolean>>;
   pon: string; // demo selector
+};
+
+// -------------------- Imprint quality report (View Imprint) --------------------
+
+export type ImprintStatus = "Ready" | "Incomplete" | "Not available";
+export type ImprintQuality = "HIGH" | "MEDIUM" | "LOW";
+
+export type SnvCompendiumQuality = ImprintQuality;
+
+export type CnvSignalStrength = "STRONG" | "MODERATE" | "WEAK";
+
+export type MajorAlleleInference = "Successful" | "Partial" | "Failed";
+export type CoverageThreshold = "Met" | "Not met";
+export type LohUsability = "FULL" | "LIMITED" | "NOT USABLE";
+
+export type MrdReadiness = "Fully supported" | "Partially supported" | "Limited";
+
+export type ImprintSummary = {
+  imprintStatus: ImprintStatus;
+  source: "Tumor FASTQ (WGS/WES)" | "Tumor VCF" | "—";
+  normalSample: "Present" | "Not present";
+  referenceGenome: "hg38" | "hg19";
+  pipelineVersion: string;
+  buildDate: string; // YYYY-MM-DD
+};
+
+export type SnvMetrics = {
+  totalSnvs: number;
+  medianTumorCoverageX: number;
+  filtering: Array<"Germline" | "CHIP" | "Blacklist regions">;
+  genomeCoveragePct: number;
+  snvCompendiumQuality: SnvCompendiumQuality;
+};
+
+export type CnvMetrics = {
+  cnvSegmentsGE1_5Mb: number;
+  genomeAffectedPct: number;
+  segmentTypes: {
+    amplifications: number;
+    deletions: number;
+    neutral: number;
+  };
+  tumorPurityIndicator?: string; // human-readable (demo)
+  cnvSignalStrength: CnvSignalStrength;
+  note?: string;
+};
+
+export type LohMetrics = {
+  lohWindows1Mb: number;
+  majorAlleleInference: MajorAlleleInference;
+  coverageThreshold: CoverageThreshold;
+  lohUsability: LohUsability;
+  comments?: string[];
+};
+
+export type ImprintOverall = {
+  overallImprintQuality: ImprintQuality;
+  mrdReadiness: MrdReadiness;
+  warnings?: string[];
+};
+
+export type ImprintReport = {
+  summary: ImprintSummary;
+  snv: SnvMetrics;
+  cnv: CnvMetrics;
+  loh: LohMetrics;
+  overall: ImprintOverall;
 };
 
 // Step3/4 data model (lightweight demo)
@@ -86,8 +153,11 @@ export type StoredPatient = Patient & {
   imprintCreated?: boolean;
   imprintCreatedAt?: string; // ISO
 
+  // ✅ NEW: View Imprint report
+  imprintReport?: ImprintReport;
+
   // Step4
-  analysisConfig?: AnalysisConfig; // ✅ NEW
+  analysisConfig?: AnalysisConfig;
   analysisRunStarted?: boolean;
   analysisRunAt?: string; // ISO
   analysisChannels?: Partial<Record<AnalysisChannelKey, AnalysisChannelState>>;

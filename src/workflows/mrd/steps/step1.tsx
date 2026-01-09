@@ -4,7 +4,7 @@ import React from "react";
 import { Card } from "@/components/ui/Card";
 import { useWorkflow } from "@/components/workflow/WorkflowContext";
 import { PatientsStore, type StoredPatient } from "@/store/patientsStore";
-import { ImprintModal, type Modules } from "@/components/mrd/ImprintModal";
+import { ImprintModal } from "@/components/mrd/ImprintModal";
 
 const INDICATION_OPTIONS = [
   { value: "", label: "Select indication…" },
@@ -15,25 +15,14 @@ const INDICATION_OPTIONS = [
 ];
 
 export function Step1() {
-  const {
-    state,
-    setSelectedPatient,
-    setCaseId,
-    setIndication,
-    toggleSurgeryDate,
-    setSurgeryDate,
-    setActiveStepId,
-  } = useWorkflow();
+  const { state, setSelectedPatient, setCaseId, setIndication, toggleSurgeryDate, setSurgeryDate, setActiveStepId } = useWorkflow();
 
   const [storeVersion, setStoreVersion] = React.useState(0);
   const [imprintOpen, setImprintOpen] = React.useState(false);
 
   const [caseApplied, setCaseApplied] = React.useState(() => {
     const hasCase = !!(state.caseId || "").trim();
-    const hasAnyMeta =
-      !!(state.indication || "").trim() ||
-      !!state.surgeryDate ||
-      !!state.selectedPatient;
+    const hasAnyMeta = !!(state.indication || "").trim() || !!state.surgeryDate || !!state.selectedPatient;
     return hasCase && hasAnyMeta;
   });
 
@@ -100,18 +89,10 @@ export function Step1() {
   const stored = hasCaseId ? findStoredById(caseId) : undefined;
 
   const imprintReady = !!stored?.imprintCreated;
-  const tumorText = imprintReady
-    ? "Yes"
-    : stored?.tumorAvailable === false
-    ? "No"
-    : "Yes";
+  const tumorText = stored?.tumorAvailable === false ? "No" : "Yes";
 
-  const nextStepIdPreview =
-    imprintReady || stored?.tumorAvailable === false ? "step3" : "step2";
-  const nextStepLabel =
-    nextStepIdPreview === "step3"
-      ? "Step 3 (Add plasma sample)"
-      : "Step 2 (Create imprint)";
+  const nextStepIdPreview = imprintReady || stored?.tumorAvailable === false ? "step3" : "step2";
+  const nextStepLabel = nextStepIdPreview === "step3" ? "Step 3 (Add plasma sample)" : "Step 2 (Create imprint)";
 
   const panelBase = "rounded-2xl border border-slate-200 bg-white p-5";
   const label = "text-xs font-medium text-slate-500";
@@ -131,15 +112,14 @@ export function Step1() {
   const btnGhostDisabled =
     "inline-flex items-center justify-center rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-400 cursor-not-allowed";
 
-  // Symmetric action cards (same geometry)
+  // Symmetric action cards
   const actionCard =
     "w-full rounded-2xl border border-slate-200 bg-white p-5 text-left shadow-[0_10px_30px_rgba(15,23,42,0.08)] flex flex-col min-h-[160px]";
   const actionTitle = "text-sm font-semibold text-slate-900";
   const actionSub = "mt-1 text-xs text-slate-500 min-h-[32px]";
   const actionFooter = "mt-auto pt-4 flex items-center justify-center";
 
-  const actionBtnBase =
-    "inline-flex items-center justify-center h-10 w-[220px] rounded-2xl text-sm font-semibold";
+  const actionBtnBase = "inline-flex items-center justify-center h-10 w-[220px] rounded-2xl text-sm font-semibold";
   const actionBtnPrimary = `${actionBtnBase} bg-sky-600 text-white hover:bg-sky-700`;
   const actionBtnSecondary = `${actionBtnBase} border border-slate-200 bg-white text-slate-900 hover:bg-slate-50`;
 
@@ -178,12 +158,6 @@ export function Step1() {
     return true;
   }
 
-  const modules: Modules = {
-    LOH: stored?.imprintModules?.LOH ?? "done",
-    CNV: stored?.imprintModules?.CNV ?? "done",
-    SNV: stored?.imprintModules?.SNV ?? "done",
-  };
-
   return (
     <div className="space-y-6">
       <Card className={panelBase}>
@@ -202,21 +176,12 @@ export function Step1() {
                 placeholder="e.g. 100"
                 className={inputEnabled}
               />
-              <button
-                type="button"
-                onClick={() => applyCaseId()}
-                disabled={!hasCaseId}
-                className={hasCaseId ? btnGhost : btnGhostDisabled}
-              >
+              <button type="button" onClick={() => applyCaseId()} disabled={!hasCaseId} className={hasCaseId ? btnGhost : btnGhostDisabled}>
                 Apply
               </button>
             </div>
 
-            <div className="mt-2 text-xs text-slate-500">
-              {fieldsUnlocked
-                ? "Unlocked"
-                : "Apply Case ID to unlock fields below"}
-            </div>
+            <div className="mt-2 text-xs text-slate-500">{fieldsUnlocked ? "Unlocked" : "Apply Case ID to unlock fields below"}</div>
           </div>
 
           {/* Indication */}
@@ -226,11 +191,7 @@ export function Step1() {
               value={state.indication || ""}
               onChange={(e) => setIndication(e.target.value)}
               disabled={!fieldsUnlocked}
-              className={
-                fieldsUnlocked
-                  ? `${selectEnabled} mt-2`
-                  : `${selectDisabled} mt-2`
-              }
+              className={fieldsUnlocked ? `${selectEnabled} mt-2` : `${selectDisabled} mt-2`}
             >
               {INDICATION_OPTIONS.map((opt) => (
                 <option key={opt.value} value={opt.value}>
@@ -245,12 +206,7 @@ export function Step1() {
             <div className="flex items-center justify-between gap-3">
               <div className={label}>Surgery date</div>
               <label className="flex items-center gap-2 text-xs text-slate-600">
-                <input
-                  type="checkbox"
-                  checked={!!state.hasSurgeryDate}
-                  disabled={!fieldsUnlocked}
-                  onChange={(e) => ensureHasSurgeryDate(e.target.checked)}
-                />
+                <input type="checkbox" checked={!!state.hasSurgeryDate} disabled={!fieldsUnlocked} onChange={(e) => ensureHasSurgeryDate(e.target.checked)} />
                 Known
               </label>
             </div>
@@ -259,12 +215,7 @@ export function Step1() {
               value={state.surgeryDate || ""}
               onChange={(e) => setSurgeryDate(e.target.value)}
               disabled={!fieldsUnlocked || !state.hasSurgeryDate}
-              className={[
-                "mt-2",
-                fieldsUnlocked && state.hasSurgeryDate
-                  ? inputEnabled
-                  : inputDisabled,
-              ].join(" ")}
+              className={["mt-2", fieldsUnlocked && state.hasSurgeryDate ? inputEnabled : inputDisabled].join(" ")}
             />
           </div>
 
@@ -272,32 +223,14 @@ export function Step1() {
           <div className="md:col-span-2 grid gap-3 md:grid-cols-2">
             <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
               <div className={label}>Tumor available</div>
-              <div className="mt-1 text-sm font-semibold text-slate-900">
-                {fieldsUnlocked && hasCaseId ? tumorText : "—"}
-              </div>
+              <div className="mt-1 text-sm font-semibold text-slate-900">{fieldsUnlocked && hasCaseId ? tumorText : "—"}</div>
             </div>
 
-            <div
-              className={[
-                "rounded-2xl px-4 py-3 border",
-                imprintReady
-                  ? "border-emerald-300 bg-emerald-50"
-                  : "border-slate-200 bg-slate-50",
-              ].join(" ")}
-            >
+            <div className={["rounded-2xl px-4 py-3 border", imprintReady ? "border-emerald-300 bg-emerald-50" : "border-slate-200 bg-slate-50"].join(" ")}>
               <div className={label}>Imprint ready</div>
               <div className="mt-1 flex items-center justify-between gap-3">
-                <div
-                  className={[
-                    "text-sm font-semibold",
-                    imprintReady ? "text-emerald-700" : "text-slate-900",
-                  ].join(" ")}
-                >
-                  {fieldsUnlocked && hasCaseId
-                    ? imprintReady
-                      ? "Yes"
-                      : "No"
-                    : "—"}
+                <div className={["text-sm font-semibold", imprintReady ? "text-emerald-700" : "text-slate-900"].join(" ")}>
+                  {fieldsUnlocked && hasCaseId ? (stored?.tumorAvailable === false ? "Not available" : imprintReady ? "Yes" : "No") : "—"}
                 </div>
 
                 {fieldsUnlocked && hasCaseId && imprintReady ? (
@@ -315,47 +248,24 @@ export function Step1() {
         </div>
       </Card>
 
-      {/* ACTIONS — perfectly symmetric */}
+      {/* ACTIONS */}
       <div className="grid gap-4 md:grid-cols-2">
         {/* Demo fill */}
-        <button
-          type="button"
-          onClick={demoFill}
-          disabled={!fieldsUnlocked}
-          className={[
-            actionCard,
-            fieldsUnlocked ? "" : "opacity-60 cursor-not-allowed",
-          ].join(" ")}
-        >
+        <button type="button" onClick={demoFill} disabled={!fieldsUnlocked} className={[actionCard, fieldsUnlocked ? "" : "opacity-60 cursor-not-allowed"].join(" ")}>
           <div className={actionTitle}>Demo fill</div>
-          <div className={actionSub}>
-            Auto-fills indication + surgery date (demo).
-          </div>
-
+          <div className={actionSub}>Auto-fills indication + surgery date (demo).</div>
           <div className={actionFooter}>
             <span className={actionBtnSecondary}>Demo fill</span>
           </div>
         </button>
 
         {/* Save & Continue */}
-        <button
-          type="button"
-          onClick={() => saveAndContinue()}
-          disabled={!isValid}
-          className={[
-            actionCard,
-            isValid ? "" : "opacity-60 cursor-not-allowed",
-          ].join(" ")}
-        >
+        <button type="button" onClick={() => saveAndContinue()} disabled={!isValid} className={[actionCard, isValid ? "" : "opacity-60 cursor-not-allowed"].join(" ")}>
           <div className={actionTitle}>Save &amp; Continue</div>
           <div className={actionSub}>
             Saves the case and continues to{" "}
-            <span className="font-semibold text-slate-700">
-              {nextStepLabel}
-            </span>
-            .
+            <span className="font-semibold text-slate-700">{nextStepLabel}</span>.
           </div>
-
           <div className={actionFooter}>
             <span className={actionBtnPrimary}>Continue →</span>
           </div>
@@ -365,15 +275,13 @@ export function Step1() {
       <ImprintModal
         open={imprintOpen}
         onClose={() => setImprintOpen(false)}
+        onGoToStep2={() => {
+          setImprintOpen(false);
+          setActiveStepId("step2");
+        }}
         patientName={state.selectedPatient?.label || caseId || "—"}
         imprintCreatedAt={stored?.imprintCreatedAt}
-        modules={modules}
-        onOpenModule={(k: keyof Modules) => {
-          setImprintOpen(false);
-          if (k === "LOH") setActiveStepId("step2_loh");
-          if (k === "CNV") setActiveStepId("step2_cnv");
-          if (k === "SNV") setActiveStepId("step2_snv");
-        }}
+        report={stored?.imprintReport}
       />
 
       <div className="hidden">{storeVersion}</div>

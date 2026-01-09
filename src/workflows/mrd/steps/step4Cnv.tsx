@@ -10,7 +10,7 @@ import type {
   AnalysisChannelState,
 } from '@/store/patientsStore';
 
-const PROCESS_TIME_MS = 4000;
+const PROCESS_TIME_MS = 2500;
 
 function getEnrichmentModelLabel(indication: string | undefined): string {
   const raw = (indication ?? '').trim();
@@ -139,7 +139,7 @@ export function Step4Cnv() {
     ? `Signal enrichment model: ${getEnrichmentModelLabel(indication)}`
     : 'No signal enrichment (not cancer-type dependent)';
 
-  const nextLabel = imprintCreated ? 'step4_snv' : 'step5';
+  
 
   return (
     <div className="space-y-4">
@@ -172,9 +172,7 @@ export function Step4Cnv() {
         ) : null}
       </Card>
 
-      <div className="text-xs text-slate-500">
-        Time: {PROCESS_TIME_MS / 1000}s • next: {nextLabel}
-      </div>
+      
     </div>
   );
 }

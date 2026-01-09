@@ -10,7 +10,7 @@ import type {
   AnalysisChannelState,
 } from '@/store/patientsStore';
 
-const PROCESS_TIME_MS = 4000;
+const PROCESS_TIME_MS = 2500;
 
 function getEnrichmentModelLabel(indication: string | undefined): string {
   const raw = (indication ?? '').trim();
@@ -140,7 +140,7 @@ export function Step4Loh() {
         {st === 'done' ? <div className="mt-4 text-xs text-emerald-700">✓ LOH channel completed</div> : null}
       </Card>
 
-      <div className="text-xs text-slate-500">Time: {PROCESS_TIME_MS / 1000}s • next: step4_cnv</div>
+      
     </div>
   );
 }
