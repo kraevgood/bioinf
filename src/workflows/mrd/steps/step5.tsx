@@ -427,8 +427,8 @@ function StatusModal({ open, onClose }: { open: boolean; onClose: () => void }) 
       <div className="absolute left-1/2 top-6 w-[min(1100px,95vw)] -translate-x-1/2 rounded-3xl border border-slate-200 bg-white shadow-xl">
         <div className="flex items-start justify-between gap-3 border-b border-slate-200 p-5">
           <div>
-            <div className="text-base font-semibold text-slate-900">Status page (demo)</div>
-            <div className="mt-1 text-xs text-slate-500">All patients and all plasma instances (demo).</div>
+            <div className="text-base font-semibold text-slate-900">Status page</div>
+            <div className="mt-1 text-xs text-slate-500">All patients and all plasma instances.</div>
           </div>
 
           <button
@@ -451,7 +451,7 @@ function StatusModal({ open, onClose }: { open: boolean; onClose: () => void }) 
             <div className="text-xs text-slate-500">Rows: {rows.length}</div>
           </div>
 
-          <div className="mt-4 overflow-auto rounded-2xl border border-slate-200">
+          <div className="mt-4 max-h-[70vh] overflow-y-auto overflow-x-auto rounded-2xl border border-slate-200">
             <table className="min-w-61.25 w-full text-left text-sm">
               <thead className="bg-slate-50 text-xs text-slate-600">
                 <tr>
@@ -483,8 +483,6 @@ function StatusModal({ open, onClose }: { open: boolean; onClose: () => void }) 
               </tbody>
             </table>
           </div>
-
-          <div className="mt-3 text-xs text-slate-500">Note: tumor fraction values are demo-generated on the frontend for now.</div>
         </div>
       </div>
     </div>

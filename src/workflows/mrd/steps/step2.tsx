@@ -31,7 +31,10 @@ type Slot = {
   error?: string;
 };
 
-type ImprintModulesState = Record<ImprintModuleKey, "idle" | "running" | "done">;
+type ImprintModulesState = Record<
+  ImprintModuleKey,
+  "idle" | "running" | "done"
+>;
 
 const VALIDATE_TIME_MS = 900;
 const PROCESS_TIME_MS = 1200;
@@ -57,7 +60,12 @@ function bytesToHuman(n: number) {
 
 function extOk(name: string) {
   const n = name.toLowerCase();
-  return n.endsWith(".fastq") || n.endsWith(".fq") || n.endsWith(".fastq.gz") || n.endsWith(".fq.gz");
+  return (
+    n.endsWith(".fastq") ||
+    n.endsWith(".fq") ||
+    n.endsWith(".fastq.gz") ||
+    n.endsWith(".fq.gz")
+  );
 }
 
 function getStored(id: string): StoredPatient | undefined {
@@ -82,22 +90,34 @@ function safeSetLocalStorageItem(key: string, value: string) {
   }
 }
 
-function readMetaFromLS(patientId: string): Partial<Record<FileSlotKey, FileMeta | null>> {
+function readMetaFromLS(
+  patientId: string
+): Partial<Record<FileSlotKey, FileMeta | null>> {
   const raw = safeGetLocalStorageItem(FILE_META_LS_PREFIX + patientId);
   if (!raw) return {};
   try {
-    const parsed = JSON.parse(raw) as Partial<Record<FileSlotKey, FileMeta | null>>;
+    const parsed = JSON.parse(raw) as Partial<
+      Record<FileSlotKey, FileMeta | null>
+    >;
     return parsed ?? {};
   } catch {
     return {};
   }
 }
 
-function writeMetaToLS(patientId: string, meta: Partial<Record<FileSlotKey, FileMeta | null>>) {
-  safeSetLocalStorageItem(FILE_META_LS_PREFIX + patientId, JSON.stringify(meta));
+function writeMetaToLS(
+  patientId: string,
+  meta: Partial<Record<FileSlotKey, FileMeta | null>>
+) {
+  safeSetLocalStorageItem(
+    FILE_META_LS_PREFIX + patientId,
+    JSON.stringify(meta)
+  );
 }
 
-function readValidFromLS(patientId: string): Partial<Record<FileSlotKey, boolean>> {
+function readValidFromLS(
+  patientId: string
+): Partial<Record<FileSlotKey, boolean>> {
   const raw = safeGetLocalStorageItem(VALID_LS_PREFIX + patientId);
   if (!raw) return {};
   try {
@@ -108,7 +128,10 @@ function readValidFromLS(patientId: string): Partial<Record<FileSlotKey, boolean
   }
 }
 
-function writeValidToLS(patientId: string, v: Partial<Record<FileSlotKey, boolean>>) {
+function writeValidToLS(
+  patientId: string,
+  v: Partial<Record<FileSlotKey, boolean>>
+) {
   safeSetLocalStorageItem(VALID_LS_PREFIX + patientId, JSON.stringify(v));
 }
 
@@ -210,14 +233,18 @@ function buildImprintReport(args: {
     totalSnvs >= 3200 && medianTumorCoverageX >= 60 && genomeCoveragePct >= 82
       ? "HIGH"
       : totalSnvs >= 1700 && medianTumorCoverageX >= 40
-        ? "MEDIUM"
-        : "LOW";
+      ? "MEDIUM"
+      : "LOW";
 
   // --- CNV ---
   const cnvSegmentsGE1_5Mb = clampInt(8 + rnd() * 55, 0, 85);
   const genomeAffectedPct = clampInt(8 + rnd() * 55, 0, 80);
 
-  const amplifications = clampInt(cnvSegmentsGE1_5Mb * (0.25 + rnd() * 0.35), 0, cnvSegmentsGE1_5Mb);
+  const amplifications = clampInt(
+    cnvSegmentsGE1_5Mb * (0.25 + rnd() * 0.35),
+    0,
+    cnvSegmentsGE1_5Mb
+  );
   const deletions = clampInt(
     cnvSegmentsGE1_5Mb * (0.25 + rnd() * 0.35),
     0,
@@ -232,30 +259,32 @@ function buildImprintReport(args: {
     genomeAffectedPct >= 28 && cnvSegmentsGE1_5Mb >= 18 && purity >= 0.35
       ? "STRONG"
       : genomeAffectedPct >= 15 && cnvSegmentsGE1_5Mb >= 10
-        ? "MODERATE"
-        : "WEAK";
+      ? "MODERATE"
+      : "WEAK";
 
   // --- LOH / BAF ---
   const lohWindows1Mb = clampInt(90 + rnd() * 140, 0, 400);
-  const coverageThreshold: CoverageThreshold = medianTumorCoverageX >= 35 ? "Met" : "Not met";
+  const coverageThreshold: CoverageThreshold =
+    medianTumorCoverageX >= 35 ? "Met" : "Not met";
 
   const majorAlleleInference: MajorAlleleInference =
     medianTumorCoverageX >= 55 && snvQuality !== "LOW"
       ? "Successful"
       : medianTumorCoverageX >= 40
-        ? "Partial"
-        : "Failed";
+      ? "Partial"
+      : "Failed";
 
   const lohUsability: LohUsability =
     majorAlleleInference === "Successful" && coverageThreshold === "Met"
       ? "FULL"
       : majorAlleleInference === "Failed"
-        ? "NOT USABLE"
-        : "LIMITED";
+      ? "NOT USABLE"
+      : "LIMITED";
 
   const lohComments: string[] = [];
   if (coverageThreshold === "Not met") lohComments.push("Low tumor coverage");
-  if (majorAlleleInference !== "Successful") lohComments.push("Insufficient heterozygous SNP density");
+  if (majorAlleleInference !== "Successful")
+    lohComments.push("Insufficient heterozygous SNP density");
 
   // --- Overall ---
   let overallQuality = snvQuality;
@@ -264,11 +293,17 @@ function buildImprintReport(args: {
 
   const warnings: string[] = [];
   if (purity < 0.25) warnings.push("Low tumor purity may reduce sensitivity");
-  if (cnvStrength === "WEAK") warnings.push("CNV signal weak — CNV channel optional");
-  if (lohUsability !== "FULL") warnings.push("LOH disabled due to insufficient data");
+  if (cnvStrength === "WEAK")
+    warnings.push("CNV signal weak — CNV channel optional");
+  if (lohUsability !== "FULL")
+    warnings.push("LOH disabled due to insufficient data");
 
   const mrdReadiness =
-    overallQuality === "HIGH" ? "Fully supported" : overallQuality === "MEDIUM" ? "Partially supported" : "Limited";
+    overallQuality === "HIGH"
+      ? "Fully supported"
+      : overallQuality === "MEDIUM"
+      ? "Partially supported"
+      : "Limited";
 
   return {
     summary: {
@@ -292,7 +327,10 @@ function buildImprintReport(args: {
       segmentTypes: { amplifications, deletions, neutral },
       tumorPurityIndicator: purityText,
       cnvSignalStrength: cnvStrength,
-      note: cnvStrength === "WEAK" ? "CNV channel may be downweighted in MRD analysis" : undefined,
+      note:
+        cnvStrength === "WEAK"
+          ? "CNV channel may be downweighted in MRD analysis"
+          : undefined,
     },
     loh: {
       lohWindows1Mb,
@@ -322,17 +360,31 @@ function FileSlot(props: {
   onPick: (f: File | null) => void;
   onClear: () => void;
 }) {
-  const { title, file, meta, error, validating, inputKey, isValidated, onPick, onClear } = props;
+  const {
+    title,
+    file,
+    meta,
+    error,
+    validating,
+    inputKey,
+    isValidated,
+    onPick,
+    onClear,
+  } = props;
   const inputRef = React.useRef<HTMLInputElement | null>(null);
 
   const border = error
     ? "border-red-200"
     : isValidated
-      ? "border-emerald-300"
-      : meta
-        ? "border-slate-300"
-        : "border-slate-200";
-  const bg = error ? "bg-red-50" : isValidated ? "bg-emerald-50/40" : "bg-white";
+    ? "border-emerald-300"
+    : meta
+    ? "border-slate-300"
+    : "border-slate-200";
+  const bg = error
+    ? "bg-red-50"
+    : isValidated
+    ? "bg-emerald-50/40"
+    : "bg-white";
 
   const displayName = meta?.name ?? (file ? file.name : "No file selected");
   const displaySize = meta?.size ?? (file ? file.size : 0);
@@ -351,9 +403,17 @@ function FileSlot(props: {
       <div className={["rounded-2xl border px-4 py-3", border, bg].join(" ")}>
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
-            <div className="truncate text-sm font-medium text-slate-900">{displayName}</div>
-            <div className="mt-1 text-xs text-slate-500">{meta ? bytesToHuman(displaySize) : "Pick a FASTQ(.gz) file."}</div>
-            {error ? <div className="mt-2 text-xs font-semibold text-red-700">{error}</div> : null}
+            <div className="truncate text-sm font-medium text-slate-900">
+              {displayName}
+            </div>
+            <div className="mt-1 text-xs text-slate-500">
+              {meta ? bytesToHuman(displaySize) : "Pick a FASTQ(.gz) file."}
+            </div>
+            {error ? (
+              <div className="mt-2 text-xs font-semibold text-red-700">
+                {error}
+              </div>
+            ) : null}
           </div>
 
           <div className="flex shrink-0 items-center gap-2">
@@ -461,7 +521,8 @@ export function Step2() {
     if (!patientId) return;
     const p = getStored(patientId);
     if (p?.imprintCreated) setTumorAvailable(true);
-    else if (p?.tumorAvailable !== undefined) setTumorAvailable(Boolean(p.tumorAvailable));
+    else if (p?.tumorAvailable !== undefined)
+      setTumorAvailable(Boolean(p.tumorAvailable));
   }, [patientId, storeVersion]);
 
   function tumorEffective(): boolean {
@@ -480,9 +541,13 @@ export function Step2() {
     if (storedValidated && !readValidGlobalFromLS(patientId)) {
       writeValidGlobalToLS(patientId, true);
       const p = getStored(patientId);
-      const isTumor = p?.imprintCreated ? true : Boolean(p?.tumorAvailable ?? tumorAvailable);
+      const isTumor = p?.imprintCreated
+        ? true
+        : Boolean(p?.tumorAvailable ?? tumorAvailable);
 
-      const reqKeys: FileSlotKey[] = isTumor ? ["nR1", "nR2", "tR1", "tR2"] : ["nR1", "nR2"];
+      const reqKeys: FileSlotKey[] = isTumor
+        ? ["nR1", "nR2", "tR1", "tR2"]
+        : ["nR1", "nR2"];
 
       reqKeys.forEach((k) => {
         if (meta[k]) setValidInLS(k, true);
@@ -565,7 +630,11 @@ export function Step2() {
     const meta: FileMeta = { name: file.name, size: file.size };
     setMetaInLS(key, meta);
 
-    setSlots((prev) => prev.map((s) => (s.key === key ? { ...s, file, meta, error: undefined } : s)));
+    setSlots((prev) =>
+      prev.map((s) =>
+        s.key === key ? { ...s, file, meta, error: undefined } : s
+      )
+    );
 
     // no auto-validate
     invalidateValidationSoft(key);
@@ -581,7 +650,11 @@ export function Step2() {
     setMetaInLS(key, null);
     setValidInLS(key, false);
 
-    setSlots((prev) => prev.map((s) => (s.key === key ? { ...s, file: null, meta: null, error: undefined } : s)));
+    setSlots((prev) =>
+      prev.map((s) =>
+        s.key === key ? { ...s, file: null, meta: null, error: undefined } : s
+      )
+    );
 
     // If imprint already created -> hard reset
     if (stored?.imprintCreated) {
@@ -793,7 +866,13 @@ export function Step2() {
   React.useEffect(() => {
     if (!patientId) return;
 
-    const moduleKey: ImprintModuleKey | null = isLoh ? "LOH" : isCnv ? "CNV" : isSnv ? "SNV" : null;
+    const moduleKey: ImprintModuleKey | null = isLoh
+      ? "LOH"
+      : isCnv
+      ? "CNV"
+      : isSnv
+      ? "SNV"
+      : null;
     if (!moduleKey) return;
 
     const p = getStored(patientId);
@@ -865,7 +944,9 @@ export function Step2() {
     return (
       <div className="space-y-2">
         <div className="text-lg font-semibold">Create imprint</div>
-        <div className="text-sm text-slate-600">Select a patient in Step 1 first.</div>
+        <div className="text-sm text-slate-600">
+          Select a patient in Step 1 first.
+        </div>
       </div>
     );
   }
@@ -874,18 +955,27 @@ export function Step2() {
 
   // Substeps
   if (!isMain) {
-    const title = isLoh ? "LOH discovery" : isCnv ? "CNV segments" : "SNV compendium";
+    const title = isLoh
+      ? "LOH discovery"
+      : isCnv
+      ? "CNV segments"
+      : "SNV compendium";
     const key: ImprintModuleKey = isLoh ? "LOH" : isCnv ? "CNV" : "SNV";
     const status = stored?.imprintModules?.[key] ?? "idle";
 
     return (
       <Card className="rounded-2xl border border-slate-200 bg-white p-5">
         <div className="text-sm font-semibold text-slate-900">{title}</div>
-        <div className="mt-1 text-xs text-slate-600">Demo: this module runs automatically and then moves to the next one.</div>
 
         <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm">
           Status:{" "}
-          <span className="font-semibold">{status === "running" ? "Running…" : status === "done" ? "Done ✓" : "Idle"}</span>
+          <span className="font-semibold">
+            {status === "running"
+              ? "Running…"
+              : status === "done"
+              ? "Done ✓"
+              : "Idle"}
+          </span>
         </div>
 
         <div className="mt-4 flex flex-wrap gap-2">
@@ -904,8 +994,12 @@ export function Step2() {
   }
 
   const canValidate = !busy && !stored?.imprintCreated;
-  const validatedGlobal = readValidGlobalFromLS(patientId) || Boolean(stored?.imprintValidated);
-  const canStartOrProceed = !busy && !stored?.imprintCreated && (tumorEffective() ? validatedGlobal : true);
+  const validatedGlobal =
+    readValidGlobalFromLS(patientId) || Boolean(stored?.imprintValidated);
+  const canStartOrProceed =
+    !busy &&
+    !stored?.imprintCreated &&
+    (tumorEffective() ? validatedGlobal : true);
 
   function slotValidated(k: FileSlotKey) {
     if (!metaPresent(k)) return false;
@@ -920,7 +1014,8 @@ export function Step2() {
       {/* ✅ top row: patient + View imprint moved up */}
       <div className="flex items-start justify-between gap-4">
         <div className="text-sm text-slate-600">
-          Patient: <span className="font-medium text-slate-900">{patientLabel}</span>
+          Patient:{" "}
+          <span className="font-medium text-slate-900">{patientLabel}</span>
         </div>
 
         <button
@@ -930,7 +1025,9 @@ export function Step2() {
           className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-900 hover:bg-slate-50 disabled:opacity-50"
         >
           View imprint
-          {stored?.imprintCreated ? <span className="ml-2 inline-flex h-2 w-2 rounded-full bg-emerald-500" /> : null}
+          {stored?.imprintCreated ? (
+            <span className="ml-2 inline-flex h-2 w-2 rounded-full bg-emerald-500" />
+          ) : null}
         </button>
       </div>
 
@@ -948,7 +1045,10 @@ export function Step2() {
                 if (stored?.imprintCreated) return;
 
                 setTumorAvailable(e.target.checked);
-                upsertPatient({ tumorAvailable: e.target.checked, imprintReport: undefined });
+                upsertPatient({
+                  tumorAvailable: e.target.checked,
+                  imprintReport: undefined,
+                });
 
                 // switching tumor flag should invalidate validation
                 invalidateValidationSoft();
@@ -1011,7 +1111,8 @@ export function Step2() {
             </>
           ) : (
             <div className="md:col-span-2 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
-              Tumor is not available → imprint cannot be created. You can upload normal and proceed directly to plasma.
+              Tumor is not available → imprint cannot be created. You can upload
+              normal and proceed directly to plasma.
             </div>
           )}
         </div>
@@ -1048,10 +1149,16 @@ export function Step2() {
           </button>
         </div>
 
-        {stored?.imprintCreated ? <div className="mt-3 text-xs font-semibold text-emerald-700">Imprint created ✓</div> : null}
+        {stored?.imprintCreated ? (
+          <div className="mt-3 text-xs font-semibold text-emerald-700">
+            Imprint created ✓
+          </div>
+        ) : null}
 
         {globalError ? (
-          <div className="mt-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{globalError}</div>
+          <div className="mt-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+            {globalError}
+          </div>
         ) : null}
 
         <div className="hidden">{storeVersion}</div>

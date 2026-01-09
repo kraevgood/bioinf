@@ -258,8 +258,8 @@ export function Step4() {
               <div className="mt-4">
                 <div className="flex items-center justify-between gap-3">
                   <div>
-                    <div className="text-xs font-semibold text-slate-900">Mode</div>
-                    <div className="mt-1 text-xs text-slate-500">Auto = defaults. Manual = set threshold &amp; PON.</div>
+                    <div className="text-xs font-semibold text-slate-900">Mode:</div>
+                    
                   </div>
                   <ModeToggle
                     value={cfg.mode}
@@ -273,7 +273,7 @@ export function Step4() {
                 <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-4">
                   <div className="text-xs font-semibold text-slate-900">Auto mode uses default threshold and PON.</div>
                   <div className="mt-1 text-xs text-slate-600">
-                    Defaults: threshold <span className="font-semibold">{DEFAULT_CONFIG.thresholdPct}</span>, PON{' '}
+                    Defaults: <br /> threshold <span className="font-semibold">{DEFAULT_CONFIG.thresholdPct}</span>,<br /> PON{' '}
                     <span className="font-semibold">{DEFAULT_CONFIG.pon}</span>.
                   </div>
                 </div>
@@ -314,10 +314,6 @@ export function Step4() {
                       }}
                       className="mt-3 w-full"
                     />
-
-                    <div className="mt-2 text-[11px] text-slate-500">
-                      Tip: typical demo range 0.01–0.05. Current: <span className="font-semibold text-slate-700">{threshold}</span>
-                    </div>
                   </div>
 
                   <div>
