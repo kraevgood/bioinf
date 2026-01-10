@@ -4,9 +4,11 @@
   --background: #ffffff;
   --foreground: #171717;
 
-  /* как в Imprinta_MRD_wizard_light2.html */
+  /* UI font stack — плотный, как у Ирины */
   --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
-    "Helvetica Neue", Arial, "Noto Sans", "Apple Color Emoji", "Segoe UI Emoji";
+    "Helvetica Neue", Arial, "Noto Sans", "Apple Color Emoji",
+    "Segoe UI Emoji", "Segoe UI Symbol";
+
   --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
     "Liberation Mono", "Courier New", monospace;
 }
@@ -14,6 +16,8 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+
+  /* Tailwind tokens */
   --font-sans: var(--font-sans);
   --font-mono: var(--font-mono);
 }
@@ -21,5 +25,14 @@
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: var(--font-sans);
+  font-family: var(--app-font-sans);
+  line-height: 1.2; 
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
 }
+
+p, label, div, input, select, button {
+  font-weight: 600;
+}
+

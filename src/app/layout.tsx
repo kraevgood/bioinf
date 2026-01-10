@@ -3,10 +3,11 @@ import { Inter } from "next/font/google";
 import "./globals.css";
 
 const inter = Inter({
-  variable: "--font-inter",
   subsets: ["latin"],
-  weight: ["400", "500", "600", "700"],
+  weight: ["400", "500", "600"],
+  variable: "--font-sans",
 });
+
 
 export const metadata: Metadata = {
   title: "Imprinta | Workflow",
@@ -14,11 +15,7 @@ export const metadata: Metadata = {
     "Interactive bioinformatics workflow for MRD analysis: tumor-informed and indication-based pipelines, FASTQ upload, imprint generation and plasma sample processing.",
 };
 
-export default function RootLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
       <body className={`${inter.variable} antialiased`}>

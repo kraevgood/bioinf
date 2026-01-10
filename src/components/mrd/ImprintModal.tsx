@@ -107,7 +107,7 @@ export function ImprintModal(props: {
                 </div>
 
                 <div className="mt-1 text-xs text-slate-500">
-                  Read-only. All changes are made in Step 2.
+                  Read-only
                   {createdAtText ? (
                     <span className="ml-2">• {createdAtText}</span>
                   ) : null}
