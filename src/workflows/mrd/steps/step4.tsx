@@ -120,7 +120,7 @@ export function Step4() {
   const analysisModeLabel = imprintCreated
     ? 'Tumor-informed'
     : imprintSkipped
-      ? 'ImprintAI+ (denoise-only)'
+      ? 'ImprintAI+'
       : '—';
 
   const analysisModeHint = imprintCreated

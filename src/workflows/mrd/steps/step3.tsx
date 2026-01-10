@@ -265,6 +265,23 @@ export function Step3() {
     setValidated(true);
   }
 
+function makeDemoFastq(name: string, sizeKb: number) {
+  // Small deterministic blob for demo (keeps bundle fast, but looks like a real file in UI)
+  const bytes = new Uint8Array(sizeKb * 1024);
+  return new File([bytes], name, { type: 'application/gzip' });
+}
+
+function handleDemoUpload() {
+  setGlobalError(null);
+
+  const base = (drawDate || 'plasma').replaceAll(':', '-');
+  const r1 = makeDemoFastq(`plasma_${base}_R1.fastq.gz`, 512);
+  const r2 = makeDemoFastq(`plasma_${base}_R2.fastq.gz`, 512);
+
+  setSlotFile('pR1', r1);
+  setSlotFile('pR2', r2);
+}
+
   function hasDateAlready(date: string) {
     return samples.some(s => (s.drawDate || '') === date);
   }
@@ -465,11 +482,20 @@ export function Step3() {
           <button
             type="button"
             disabled={validating}
+            onClick={handleDemoUpload}
+            className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-60"
+          >
+            Demo Upload
+          </button>
+          <button
+            type="button"
+            disabled={validating}
             onClick={handleValidate}
             className="rounded-xl bg-sky-600 px-4 py-2 text-sm font-semibold text-white hover:bg-sky-700 disabled:opacity-60"
           >
             Validate
           </button>
+          
 
           <button
             type="button"

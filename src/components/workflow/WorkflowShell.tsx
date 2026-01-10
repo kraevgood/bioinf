@@ -22,7 +22,7 @@ function filterStepsForPatient(steps: WorkflowStep[], patientId: string | null):
 
   const p = PatientsStore.findById(patientId);
 
-  // ✅ Source of truth: Step2 checkbox -> tumorAvailable
+  // Source of truth: Step2 checkbox -> tumorAvailable
   // Default: tumor is available unless explicitly set to false.
   const tumorAvailable = p?.tumorAvailable !== false;
 
@@ -35,7 +35,7 @@ function filterStepsForPatient(steps: WorkflowStep[], patientId: string | null):
       .map(mapStep)
       .filter((x): x is WorkflowStep => x !== null);
 
-    // ✅ Correct order:
+    // Correct order:
     // Tumor: LOH → CNV → SNV
     // No tumor: SNV → CNV
     if (s.id === 'step4') {

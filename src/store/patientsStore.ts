@@ -61,7 +61,7 @@ export type MrdReadiness = "Fully supported" | "Partially supported" | "Limited"
 
 export type ImprintSummary = {
   imprintStatus: ImprintStatus;
-  source: "Tumor FASTQ (WGS/WES)" | "Tumor VCF" | "—";
+  source: "Tumor WGS" | "Tumor VCF" | "—";
   normalSample: "Present" | "Not present";
   referenceGenome: "hg38" | "hg19";
   pipelineVersion: string;

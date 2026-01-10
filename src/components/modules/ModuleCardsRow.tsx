@@ -43,7 +43,7 @@ export function ModuleCardsRow({
           >
             <Card
               className={[
-                'p-5 h-full flex flex-col', // ✅ важно: flex-col
+                'p-5 h-full flex flex-col', 
                 'transition-all duration-300 ease-out',
                 isActive ? 'ring-1 ring-slate-200' : '',
                 isDisabled ? 'opacity-60 grayscale' : 'hover:border-slate-300',
@@ -56,7 +56,7 @@ export function ModuleCardsRow({
                     {m.title}
                   </div>
 
-                  {/* ✅ subtitle показываем только для активного/доступного модуля */}
+                  {/* subtitle показываем только для активного/доступного модуля */}
                   {!isDisabled && m.subtitle ? (
                     <div className="mt-1 text-sm text-slate-500">{m.subtitle}</div>
                   ) : null}
@@ -79,20 +79,14 @@ export function ModuleCardsRow({
                 </div>
               </div>
 
-              {/* ✅ BOTTOM (прижато вниз) */}
+              {/* BOTTOM (прижато вниз) */}
               {isDisabled ? (
                 <div className="mt-auto pt-4">
                   <div className="inline-flex rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs text-slate-600">
                     Workflow coming soon
                   </div>
                 </div>
-              ) : (
-                <div className="mt-auto pt-4 flex flex-wrap gap-2">
-                  <Pill>Wizard</Pill>
-                  <Pill>Tree layout</Pill>
-                  <Pill>{isActive ? 'Active' : 'Available'}</Pill>
-                </div>
-              )}
+              ) : null}
             </Card>
           </button>
         );

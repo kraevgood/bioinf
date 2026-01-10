@@ -308,7 +308,7 @@ function buildImprintReport(args: {
   return {
     summary: {
       imprintStatus: tumorPresent ? "Ready" : "Incomplete",
-      source: tumorPresent ? "Tumor FASTQ (WGS/WES)" : "—",
+      source: tumorPresent ? "Tumor WGS" : "—",
       normalSample: normalPresent ? "Present" : "Not present",
       referenceGenome: "hg38",
       pipelineVersion: "Imprint pipeline v1.0",
@@ -769,7 +769,7 @@ export function Step2() {
       return;
     }
 
-    // tumor-informed: require validation (LS and/or PatientsStore)
+    // tumor-informed: require validation 
     const storedValidated = Boolean(getStored(patientId)?.imprintValidated);
     if (!(readValidGlobalFromLS(patientId) || storedValidated)) {
       setGlobalError("Validate files first.");
@@ -798,7 +798,7 @@ export function Step2() {
     setImprintOpen(true);
   }
 
-  /* ------------------------------ Demo Upload (NEW) ------------------------------ */
+  /* ------------------------------ Demo Upload ------------------------------ */
 
   function makeDemoMeta(slotKey: FileSlotKey): FileMeta {
     const id = patientId ?? "patient";
@@ -997,9 +997,9 @@ export function Step2() {
   const validatedGlobal =
     readValidGlobalFromLS(patientId) || Boolean(stored?.imprintValidated);
   const canStartOrProceed =
-    !busy &&
-    !stored?.imprintCreated &&
-    (tumorEffective() ? validatedGlobal : true);
+  !busy &&
+  (stored?.imprintCreated ? true : tumorEffective() ? validatedGlobal : true);
+
 
   function slotValidated(k: FileSlotKey) {
     if (!metaPresent(k)) return false;
@@ -1011,7 +1011,7 @@ export function Step2() {
     <div className="space-y-5">
       <div className="text-lg font-semibold">FASTQ upload</div>
 
-      {/* ✅ top row: patient + View imprint moved up */}
+      {/* top row: patient + View imprint moved up */}
       <div className="flex items-start justify-between gap-4">
         <div className="text-sm text-slate-600">
           Patient:{" "}
@@ -1142,10 +1142,25 @@ export function Step2() {
           <button
             type="button"
             disabled={!canStartOrProceed}
-            onClick={handleStartOrProceed}
+            onClick={() => {
+              if (!patientId) return;
+
+              // если imprint уже создан → просто продолжаем
+              if (stored?.imprintCreated) {
+                setActiveStepId("step3");
+                return;
+              }
+
+              // иначе используем существующую логику
+              handleStartOrProceed();
+            }}
             className="rounded-xl bg-sky-500 px-4 py-2 text-sm font-semibold text-white hover:bg-sky-700 disabled:opacity-60"
           >
-            {tumorEffective() ? "Start imprint" : "Proceed to plasma"}
+            {stored?.imprintCreated
+              ? "Continue"
+              : tumorEffective()
+              ? "Start imprint"
+              : "Continue"}
           </button>
         </div>
 

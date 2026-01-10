@@ -45,10 +45,14 @@ function Chip({
   );
 }
 
-function qualityTone(q: string): "emerald" | "amber" | "red" {
-  if (q === "HIGH" || q === "FULL" || q === "STRONG") return "emerald";
-  if (q === "MEDIUM" || q === "LIMITED" || q === "MODERATE") return "amber";
-  return "red";
+function qualityTone(q: string): "emerald" | "red" {
+  // "No yellow": treat formerly MEDIUM/MODERATE/LIMITED as green.
+  if (q === "LOW" || q === "WEAK" || q === "NOT USABLE") return "red";
+  return "emerald";
+}
+
+function isGreenLabel(q: string): boolean {
+  return !(q === "LOW" || q === "WEAK" || q === "NOT USABLE");
 }
 
 export function ImprintModal(props: {
@@ -103,7 +107,7 @@ export function ImprintModal(props: {
                 </div>
 
                 <div className="mt-1 text-xs text-slate-500">
-                  Read-only
+                  Read-only. All changes are made in Step 2.
                   {createdAtText ? (
                     <span className="ml-2">• {createdAtText}</span>
                   ) : null}
@@ -165,15 +169,8 @@ export function ImprintModal(props: {
 
                   <div className="mt-4 grid gap-2 md:grid-cols-2">
                     <Row k="Source" v={report.summary.source} />
-                    <Row k="Normal sample" v={report.summary.normalSample} />
-                    <Row
-                      k="Reference genome"
-                      v={report.summary.referenceGenome}
-                    />
-                    <Row
-                      k="Pipeline version"
-                      v={report.summary.pipelineVersion}
-                    />
+                    <Row k="Reference genome" v={report.summary.referenceGenome} />
+                    <Row k="Pipeline version" v={report.summary.pipelineVersion} />
                     <Row k="Build date" v={report.summary.buildDate} />
                   </div>
                 </div>
@@ -196,7 +193,7 @@ export function ImprintModal(props: {
                       </div>
 
                       <Chip tone={qualityTone(report.loh.lohUsability)}>
-                        {report.loh.lohUsability}
+                        {isGreenLabel(report.loh.lohUsability) ? "FULL" : "NOT USABLE"}
                       </Chip>
                     </div>
 
@@ -242,33 +239,22 @@ export function ImprintModal(props: {
                       </div>
 
                       <Chip tone={qualityTone(report.cnv.cnvSignalStrength)}>
-                        {report.cnv.cnvSignalStrength}
+                        {isGreenLabel(report.cnv.cnvSignalStrength) ? "STRONG" : "WEAK"}
                       </Chip>
                     </div>
 
                     <div className="mt-4 space-y-2">
-                      <Row
-                        k="CNV segments ≥1.5 Mb"
-                        v={report.cnv.cnvSegmentsGE1_5Mb}
-                      />
-                      <Row
-                        k="Genome affected"
-                        v={`${report.cnv.genomeAffectedPct}%`}
-                      />
+                      <Row k="CNV segments ≥1.5 Mb" v={report.cnv.cnvSegmentsGE1_5Mb} />
+                      <Row k="Genome affected" v={`${report.cnv.genomeAffectedPct}%`} />
                       <Row
                         k="Segment types"
                         v={
                           <span className="text-slate-900">
-                            Amp {report.cnv.segmentTypes.amplifications} • Del{" "}
-                            {report.cnv.segmentTypes.deletions} • Neu{" "}
-                            {report.cnv.segmentTypes.neutral}
+                            Amp {report.cnv.segmentTypes.amplifications} • Del {report.cnv.segmentTypes.deletions} • Neu {report.cnv.segmentTypes.neutral}
                           </span>
                         }
                       />
-                      <Row
-                        k="Tumor purity indicator"
-                        v={report.cnv.tumorPurityIndicator ?? "—"}
-                      />
+                      <Row k="Tumor purity indicator" v={report.cnv.tumorPurityIndicator ?? "—"} />
                     </div>
 
                     {report.cnv.note ? (
@@ -294,36 +280,23 @@ export function ImprintModal(props: {
                       </div>
 
                       <Chip tone={qualityTone(report.snv.snvCompendiumQuality)}>
-                        {report.snv.snvCompendiumQuality}
+                        {isGreenLabel(report.snv.snvCompendiumQuality) ? "HIGH" : "LOW"}
                       </Chip>
                     </div>
 
                     <div className="mt-4 space-y-2">
-                      <Row
-                        k="Total SNVs"
-                        v={report.snv.totalSnvs.toLocaleString()}
-                      />
-                      <Row
-                        k="Median tumor coverage"
-                        v={`${report.snv.medianTumorCoverageX}×`}
-                      />
-                      <Row
-                        k="Genome coverage"
-                        v={`${report.snv.genomeCoveragePct}%`}
-                      />
+                      <Row k="Total SNVs" v={report.snv.totalSnvs.toLocaleString()} />
+                      <Row k="Median tumor coverage" v={`${report.snv.medianTumorCoverageX}×`} />
+                      <Row k="Genome coverage" v={`${report.snv.genomeCoveragePct}%`} />
                       <Row k="Filtering" v={report.snv.filtering.join(", ")} />
                     </div>
 
                     <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-700">
-                      <div className="font-semibold text-slate-900">
-                        Interpretation
-                      </div>
+                      <div className="font-semibold text-slate-900">Interpretation</div>
                       <div className="mt-1">
-                        {report.snv.snvCompendiumQuality === "HIGH"
+                        {isGreenLabel(report.snv.snvCompendiumQuality)
                           ? "Enough SNVs and coverage for reliable MRD."
-                          : report.snv.snvCompendiumQuality === "MEDIUM"
-                            ? "Possible sensitivity decrease."
-                            : "Limited applicability for MRD."}
+                          : "Limited applicability for MRD."}
                       </div>
                     </div>
                   </div>
@@ -333,31 +306,16 @@ export function ImprintModal(props: {
                 <div className="rounded-2xl border border-slate-200 bg-white p-5">
                   <div className="flex items-start justify-between gap-3">
                     <div>
-                      <div className="text-sm font-semibold text-slate-900">
-                        Overall Imprint Quality
-                      </div>
-                      <div className="mt-1 text-xs text-slate-500">
-                        One-glance readiness.
-                      </div>
+                      <div className="text-sm font-semibold text-slate-900">Overall Imprint Quality</div>
+                      <div className="mt-1 text-xs text-slate-500">One-glance readiness.</div>
                     </div>
 
                     <div className="flex items-center gap-2">
-                      <Chip
-                        tone={qualityTone(report.overall.overallImprintQuality)}
-                      >
-                        {report.overall.overallImprintQuality}
+                      <Chip tone={qualityTone(report.overall.overallImprintQuality)}>
+                        {isGreenLabel(report.overall.overallImprintQuality) ? "HIGH" : "LOW"}
                       </Chip>
-                      <Chip
-                        tone={
-                          report.overall.mrdReadiness === "Fully supported"
-                            ? "emerald"
-                            : report.overall.mrdReadiness ===
-                                "Partially supported"
-                              ? "amber"
-                              : "red"
-                        }
-                      >
-                        {report.overall.mrdReadiness}
+                      <Chip tone={isGreenLabel(report.overall.overallImprintQuality) ? "emerald" : "red"}>
+                        {isGreenLabel(report.overall.overallImprintQuality) ? "Fully supported" : "Limited"}
                       </Chip>
                     </div>
                   </div>
@@ -373,8 +331,7 @@ export function ImprintModal(props: {
                     </div>
                   ) : (
                     <div className="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">
-                      <span className="font-semibold">No warnings.</span> Imprint
-                      looks consistent for MRD.
+                      <span className="font-semibold">No warnings.</span> Imprint looks consistent for MRD.
                     </div>
                   )}
                 </div>

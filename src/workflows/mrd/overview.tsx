@@ -3,7 +3,7 @@ import type { WorkflowOverviewDiagramProps } from "@/components/workflow/Workflo
 import { Dna, TestTube} from "lucide-react";
 
 export const mrdOverview: WorkflowOverviewDiagramProps = {
-  title: "MRD workflow overview",
+  title: "MRD workflow overview ImprintAI processing (ML-based signal enrichment and denoising)",
   // сабтайтл ты уже убирал на диаграмме — можно оставить, но он не покажется
   description:
     "Biopsy → signature (if tumor) → plasma timepoints → ImprintAI processing → MRD dynamics.",
@@ -34,12 +34,10 @@ export const mrdOverview: WorkflowOverviewDiagramProps = {
       title: "ImprintAI processing",
       top: {
         title: "Tumor-informed",
-        subtitle: "ImprintAI + enrichment",
         emphasis: true,
       },
       bottom: {
         title: "Non-tumor-informed",
-        subtitle: "ImprintAI+ (denoise-only)",
         emphasis: true,
       },
     },
