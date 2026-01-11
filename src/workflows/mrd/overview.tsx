@@ -37,7 +37,7 @@ export const mrdOverview: WorkflowOverviewDiagramProps = {
         emphasis: true,
       },
       bottom: {
-        title: "Non-tumor-informed",
+        title: "Non tumor-informed",
         emphasis: true,
       },
     },

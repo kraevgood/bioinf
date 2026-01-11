@@ -4,7 +4,7 @@ export const MODULES: ModuleCard[] = [
   {
     key: 'MRD',
     title: 'MRD Module (Minimal Residual Disease)',
-    subtitle: 'Wizard — Tree layout • longitudinal MRD scoring',
+    subtitle: 'Longitudinal MRD scoring',
     enabled: true,
   },
   {
