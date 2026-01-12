@@ -7,6 +7,9 @@ import {
   ChromosomeCNVIcon,
   ChromosomeSNVIcon,
 } from "@/components/icons/ImprintIcons";
+import { LohChannelModal } from "@/components/mrd/LohChannelModal";
+import { CnvChannelModal } from "@/components/mrd/CnvChannelModal";
+import { SnvChannelModal } from "@/components/mrd/SnvChannelModal";
 
 function Row({ k, v }: { k: string; v: React.ReactNode }) {
   return (
@@ -22,16 +25,14 @@ function Chip({
   tone = "slate",
 }: {
   children: React.ReactNode;
-  tone?: "slate" | "emerald" | "amber" | "red";
+  tone?: "slate" | "emerald" | "red";
 }) {
   const cls =
     tone === "emerald"
       ? "border-emerald-200 bg-emerald-50 text-emerald-900"
-      : tone === "amber"
-        ? "border-amber-200 bg-amber-50 text-amber-900"
-        : tone === "red"
-          ? "border-red-200 bg-red-50 text-red-900"
-          : "border-slate-200 bg-slate-50 text-slate-800";
+      : tone === "red"
+      ? "border-red-200 bg-red-50 text-red-900"
+      : "border-slate-200 bg-slate-50 text-slate-800";
 
   return (
     <span
@@ -45,14 +46,18 @@ function Chip({
   );
 }
 
-function qualityTone(q: string): "emerald" | "red" {
-  // "No yellow": treat formerly MEDIUM/MODERATE/LIMITED as green.
-  if (q === "LOW" || q === "WEAK" || q === "NOT USABLE") return "red";
-  return "emerald";
+/**
+ * Keep original labels in UI (FULL/HIGH/STRONG/...) but remove yellow statuses.
+ * We "promote" MEDIUM/MODERATE/LIMITED to GOOD (green) by default.
+ * BAD is only LOW/WEAK/NOT USABLE/FAILED/etc.
+ */
+function isBadLabel(v: string): boolean {
+  const x = (v ?? "").toUpperCase().trim();
+  return x === "LOW" || x === "WEAK" || x === "NOT USABLE" || x === "FAILED";
 }
 
-function isGreenLabel(q: string): boolean {
-  return !(q === "LOW" || q === "WEAK" || q === "NOT USABLE");
+function goodBadTone(v: string): "emerald" | "red" {
+  return isBadLabel(v) ? "red" : "emerald";
 }
 
 export function ImprintModal(props: {
@@ -75,26 +80,78 @@ export function ImprintModal(props: {
     return () => window.removeEventListener("keydown", onEsc);
   }, [open, onClose]);
 
+  const [lohOpen, setLohOpen] = React.useState(false);
+  const [cnvOpen, setCnvOpen] = React.useState(false);
+  const [snvOpen, setSnvOpen] = React.useState(false);
+
+  React.useEffect(() => {
+    if (!open) return;
+
+    const html = document.documentElement;
+    const body = document.body;
+
+    const prevHtmlOverflow = html.style.overflow;
+    const prevBodyOverflow = body.style.overflow;
+
+    html.style.overflow = "hidden";
+    body.style.overflow = "hidden";
+
+    return () => {
+      html.style.overflow = prevHtmlOverflow;
+      body.style.overflow = prevBodyOverflow;
+    };
+  }, [open]);
+
+  React.useEffect(() => {
+    if (open) return;
+    setLohOpen(false);
+    setCnvOpen(false);
+    setSnvOpen(false);
+  }, [open]);
+
   if (!open) return null;
 
   const createdAtText = imprintCreatedAt
     ? new Date(imprintCreatedAt).toLocaleString()
     : null;
 
+  // ✅ FIX: derive OVERALL status from the 3 channels (and imprint status),
+  // instead of trusting report.overall.* which can be inconsistent in demo data.
+  const lohOk = report ? !isBadLabel(report.loh.lohUsability) : false;
+  const cnvOk = report ? !isBadLabel(report.cnv.cnvSignalStrength) : false;
+  const snvOk = report ? !isBadLabel(report.snv.snvCompendiumQuality) : false;
+
+  const imprintReady = report ? report.summary.imprintStatus === "Ready" : false;
+
+  const allChannelsOk = lohOk && cnvOk && snvOk;
+  const overallQualityLabel: "HIGH" | "LOW" = allChannelsOk ? "HIGH" : "LOW";
+  const derivedReadiness =
+    allChannelsOk && imprintReady ? "Fully supported" : "Partially supported";
+
+  // For the warning panel we only use existing warning UI;
+  // we just decide WHEN to show it. If there are no warnings in data,
+  // we provide a single generic one (only when not fully supported).
+  const derivedWarnings =
+    allChannelsOk && imprintReady
+      ? []
+      : report?.overall.warnings?.length
+      ? report.overall.warnings
+      : ["One or more channels are below recommended quality thresholds."];
+
   return (
     <div className="fixed inset-0 z-50">
       <button
         type="button"
         onClick={onClose}
-        className="absolute inset-0 bg-black/40"
+        className="fixed inset-0 bg-black/40"
         aria-label="Close"
       />
 
-      <div className="absolute left-1/2 top-1/2 w-[min(1040px,calc(100vw-32px))] -translate-x-1/2 -translate-y-1/2">
-        <div className="rounded-3xl border border-slate-200 bg-white shadow-[0_30px_90px_rgba(0,0,0,0.25)] overflow-hidden">
+      <div className="fixed left-1/2 top-1/2 w-[min(1040px,calc(100vw-32px))] -translate-x-1/2 -translate-y-1/2">
+        <div className="rounded-3xl border border-slate-200 bg-white shadow-[0_30px_90px_rgba(0,0,0,0.25)] overflow-hidden flex max-h-[calc(100vh-64px)] flex-col">
           {/* HEADER */}
           <div className="border-b border-slate-200 p-6">
-            <div className="flex items-start justify-between gap-6">
+            <div className="grid grid-cols-[1fr_auto] items-start gap-6">
               <div className="min-w-0">
                 <div className="text-sm font-semibold text-slate-900">
                   View Imprint — Quality Metrics
@@ -107,7 +164,7 @@ export function ImprintModal(props: {
                 </div>
 
                 <div className="mt-1 text-xs text-slate-500">
-                  Read-only
+                  Read-only. All changes are made in Step 2.
                   {createdAtText ? (
                     <span className="ml-2">• {createdAtText}</span>
                   ) : null}
@@ -134,11 +191,11 @@ export function ImprintModal(props: {
           </div>
 
           {/* BODY */}
-          <div className="max-h-[70vh] overflow-auto p-6 space-y-5">
+          <div className="overflow-auto p-6 space-y-5">
             {!report ? (
               <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
-                No quality report found for this imprint (demo). Re-create imprint
-                in Step 2.
+                No quality report found for this imprint (demo). Re-create
+                imprint in Step 2.
               </div>
             ) : (
               <>
@@ -158,9 +215,7 @@ export function ImprintModal(props: {
                       tone={
                         report.summary.imprintStatus === "Ready"
                           ? "emerald"
-                          : report.summary.imprintStatus === "Incomplete"
-                            ? "amber"
-                            : "red"
+                          : "red"
                       }
                     >
                       {report.summary.imprintStatus}
@@ -169,8 +224,15 @@ export function ImprintModal(props: {
 
                   <div className="mt-4 grid gap-2 md:grid-cols-2">
                     <Row k="Source" v={report.summary.source} />
-                    <Row k="Reference genome" v={report.summary.referenceGenome} />
-                    <Row k="Pipeline version" v={report.summary.pipelineVersion} />
+                    <Row k="Normal sample" v={report.summary.normalSample} />
+                    <Row
+                      k="Reference genome"
+                      v={report.summary.referenceGenome}
+                    />
+                    <Row
+                      k="Pipeline version"
+                      v={report.summary.pipelineVersion}
+                    />
                     <Row k="Build date" v={report.summary.buildDate} />
                   </div>
                 </div>
@@ -178,7 +240,12 @@ export function ImprintModal(props: {
                 {/* 3 blocks */}
                 <div className="grid gap-4 md:grid-cols-3">
                   {/* LOH */}
-                  <div className="rounded-2xl border border-slate-200 bg-white p-5">
+                  <button
+                    type="button"
+                    onClick={() => setLohOpen(true)}
+                    className="rounded-2xl border border-slate-200 bg-white p-5 text-left hover:bg-slate-100/40 flex flex-col justify-start"
+                    aria-label="Open LOH / BAF details"
+                  >
                     <div className="flex items-start justify-between gap-3">
                       <div className="flex items-center gap-3">
                         <ChromosomeLOHIcon size={44} />
@@ -192,13 +259,18 @@ export function ImprintModal(props: {
                         </div>
                       </div>
 
-                      <Chip tone={qualityTone(report.loh.lohUsability)}>
-                        {isGreenLabel(report.loh.lohUsability) ? "FULL" : "NOT USABLE"}
+                      <Chip tone={goodBadTone(report.loh.lohUsability)}>
+                        {isBadLabel(report.loh.lohUsability)
+                          ? "NOT USABLE"
+                          : "FULL"}
                       </Chip>
                     </div>
 
                     <div className="mt-4 space-y-2">
-                      <Row k="LOH windows (1 Mb)" v={report.loh.lohWindows1Mb} />
+                      <Row
+                        k="LOH windows (1 Mb)"
+                        v={report.loh.lohWindows1Mb}
+                      />
                       <Row
                         k="Major allele inference"
                         v={report.loh.majorAlleleInference}
@@ -221,10 +293,15 @@ export function ImprintModal(props: {
                         </ul>
                       </div>
                     ) : null}
-                  </div>
+                  </button>
 
                   {/* CNV */}
-                  <div className="rounded-2xl border border-slate-200 bg-white p-5">
+                  <button
+                    type="button"
+                    onClick={() => setCnvOpen(true)}
+                    className="rounded-2xl border border-slate-200 bg-white p-5 text-left hover:bg-slate-100/40 flex flex-col justify-start"
+                    aria-label="Open CNV details"
+                  >
                     <div className="flex items-start justify-between gap-3">
                       <div className="flex items-center gap-3">
                         <ChromosomeCNVIcon size={44} />
@@ -238,23 +315,36 @@ export function ImprintModal(props: {
                         </div>
                       </div>
 
-                      <Chip tone={qualityTone(report.cnv.cnvSignalStrength)}>
-                        {isGreenLabel(report.cnv.cnvSignalStrength) ? "STRONG" : "WEAK"}
+                      <Chip tone={goodBadTone(report.cnv.cnvSignalStrength)}>
+                        {isBadLabel(report.cnv.cnvSignalStrength)
+                          ? "WEAK"
+                          : "STRONG"}
                       </Chip>
                     </div>
 
                     <div className="mt-4 space-y-2">
-                      <Row k="CNV segments ≥1.5 Mb" v={report.cnv.cnvSegmentsGE1_5Mb} />
-                      <Row k="Genome affected" v={`${report.cnv.genomeAffectedPct}%`} />
+                      <Row
+                        k="CNV segments ≥1.5 Mb"
+                        v={report.cnv.cnvSegmentsGE1_5Mb}
+                      />
+                      <Row
+                        k="Genome affected"
+                        v={`${report.cnv.genomeAffectedPct}%`}
+                      />
                       <Row
                         k="Segment types"
                         v={
                           <span className="text-slate-900">
-                            Amp {report.cnv.segmentTypes.amplifications} • Del {report.cnv.segmentTypes.deletions} • Neu {report.cnv.segmentTypes.neutral}
+                            Amp {report.cnv.segmentTypes.amplifications} • Del{" "}
+                            {report.cnv.segmentTypes.deletions} • Neu{" "}
+                            {report.cnv.segmentTypes.neutral}
                           </span>
                         }
                       />
-                      <Row k="Tumor purity indicator" v={report.cnv.tumorPurityIndicator ?? "—"} />
+                      <Row
+                        k="Tumor purity indicator"
+                        v={report.cnv.tumorPurityIndicator ?? "—"}
+                      />
                     </div>
 
                     {report.cnv.note ? (
@@ -262,10 +352,15 @@ export function ImprintModal(props: {
                         {report.cnv.note}
                       </div>
                     ) : null}
-                  </div>
+                  </button>
 
                   {/* SNV */}
-                  <div className="rounded-2xl border border-slate-200 bg-white p-5">
+                  <button
+                    type="button"
+                    onClick={() => setSnvOpen(true)}
+                    className="rounded-2xl border border-slate-200 bg-white p-5 text-left hover:bg-slate-100/40 flex flex-col justify-start"
+                    aria-label="Open SNV details"
+                  >
                     <div className="flex items-start justify-between gap-3">
                       <div className="flex items-center gap-3">
                         <ChromosomeSNVIcon size={44} />
@@ -279,59 +374,79 @@ export function ImprintModal(props: {
                         </div>
                       </div>
 
-                      <Chip tone={qualityTone(report.snv.snvCompendiumQuality)}>
-                        {isGreenLabel(report.snv.snvCompendiumQuality) ? "HIGH" : "LOW"}
+                      <Chip tone={goodBadTone(report.snv.snvCompendiumQuality)}>
+                        {isBadLabel(report.snv.snvCompendiumQuality)
+                          ? "LOW"
+                          : "HIGH"}
                       </Chip>
                     </div>
 
                     <div className="mt-4 space-y-2">
-                      <Row k="Total SNVs" v={report.snv.totalSnvs.toLocaleString()} />
-                      <Row k="Median tumor coverage" v={`${report.snv.medianTumorCoverageX}×`} />
-                      <Row k="Genome coverage" v={`${report.snv.genomeCoveragePct}%`} />
+                      <Row
+                        k="Total SNVs"
+                        v={report.snv.totalSnvs.toLocaleString()}
+                      />
+                      <Row
+                        k="Median tumor coverage"
+                        v={`${report.snv.medianTumorCoverageX}×`}
+                      />
+                      <Row
+                        k="Genome coverage"
+                        v={`${report.snv.genomeCoveragePct}%`}
+                      />
                       <Row k="Filtering" v={report.snv.filtering.join(", ")} />
                     </div>
 
                     <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-700">
-                      <div className="font-semibold text-slate-900">Interpretation</div>
+                      <div className="font-semibold text-slate-900">
+                        Interpretation
+                      </div>
                       <div className="mt-1">
-                        {isGreenLabel(report.snv.snvCompendiumQuality)
-                          ? "Enough SNVs and coverage for reliable MRD."
-                          : "Limited applicability for MRD."}
+                        {isBadLabel(report.snv.snvCompendiumQuality)
+                          ? "Limited applicability for MRD."
+                          : "Enough SNVs and coverage for reliable MRD."}
                       </div>
                     </div>
-                  </div>
+                  </button>
                 </div>
 
                 {/* OVERALL */}
                 <div className="rounded-2xl border border-slate-200 bg-white p-5">
                   <div className="flex items-start justify-between gap-3">
                     <div>
-                      <div className="text-sm font-semibold text-slate-900">Overall Imprint Quality</div>
-                      <div className="mt-1 text-xs text-slate-500">One-glance readiness.</div>
+                      <div className="text-sm font-semibold text-slate-900">
+                        Overall Imprint Quality
+                      </div>
+                      <div className="mt-1 text-xs text-slate-500">
+                        One-glance readiness.
+                      </div>
                     </div>
 
                     <div className="flex items-center gap-2">
-                      <Chip tone={qualityTone(report.overall.overallImprintQuality)}>
-                        {isGreenLabel(report.overall.overallImprintQuality) ? "HIGH" : "LOW"}
+                      <Chip tone={goodBadTone(overallQualityLabel)}>
+                        {overallQualityLabel}
                       </Chip>
-                      <Chip tone={isGreenLabel(report.overall.overallImprintQuality) ? "emerald" : "red"}>
-                        {isGreenLabel(report.overall.overallImprintQuality) ? "Fully supported" : "Limited"}
+                      <Chip
+                        tone={allChannelsOk && imprintReady ? "emerald" : "red"}
+                      >
+                        {derivedReadiness}
                       </Chip>
                     </div>
                   </div>
 
-                  {report.overall.warnings?.length ? (
+                  {derivedWarnings.length ? (
                     <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
                       <div className="font-semibold">Warnings</div>
                       <ul className="mt-2 list-disc pl-5">
-                        {report.overall.warnings.map((w) => (
+                        {derivedWarnings.map((w) => (
                           <li key={w}>{w}</li>
                         ))}
                       </ul>
                     </div>
                   ) : (
                     <div className="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">
-                      <span className="font-semibold">No warnings.</span> Imprint looks consistent for MRD.
+                      <span className="font-semibold">No warnings.</span>{" "}
+                      Imprint looks consistent for MRD.
                     </div>
                   )}
                 </div>
@@ -340,6 +455,30 @@ export function ImprintModal(props: {
           </div>
         </div>
       </div>
+
+      <LohChannelModal
+        open={lohOpen}
+        onClose={() => setLohOpen(false)}
+        patientName={patientName}
+        imprintCreatedAt={imprintCreatedAt}
+        report={report}
+      />
+
+      <CnvChannelModal
+        open={cnvOpen}
+        onClose={() => setCnvOpen(false)}
+        patientName={patientName}
+        imprintCreatedAt={imprintCreatedAt}
+        report={report}
+      />
+
+      <SnvChannelModal
+        open={snvOpen}
+        onClose={() => setSnvOpen(false)}
+        patientName={patientName}
+        imprintCreatedAt={imprintCreatedAt}
+        report={report}
+      />
     </div>
   );
 }
