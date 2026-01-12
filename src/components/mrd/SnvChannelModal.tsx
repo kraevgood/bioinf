@@ -217,7 +217,7 @@ function Cell({
   return (
     <td
       className={[
-        "whitespace-nowrap px-3 py-2 text-xs text-slate-900",
+        "whitespace-nowrap px-3 py-0.5 text-xs text-slate-900",
         "border-r border-slate-200 last:border-r-0",
         className,
       ].join(" ")}
