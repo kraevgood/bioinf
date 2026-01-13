@@ -274,13 +274,18 @@ function makeDemoFastq(name: string, sizeKb: number) {
 function handleDemoUpload() {
   setGlobalError(null);
 
-  const base = (drawDate || 'plasma').replaceAll(':', '-');
+  // fallback: today
+  const autoDate = surgeryDate ? addDays(surgeryDate, 10) : toISODate(new Date());
+  setDrawDate(autoDate);
+
+  const base = autoDate.replaceAll(":", "-");
   const r1 = makeDemoFastq(`plasma_${base}_R1.fastq.gz`, 512);
   const r2 = makeDemoFastq(`plasma_${base}_R2.fastq.gz`, 512);
 
-  setSlotFile('pR1', r1);
-  setSlotFile('pR2', r2);
+  setSlotFile("pR1", r1);
+  setSlotFile("pR2", r2);
 }
+
 
   function hasDateAlready(date: string) {
     return samples.some(s => (s.drawDate || '') === date);
